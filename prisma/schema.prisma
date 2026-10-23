@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Minimal schema — expand when implementing wallet logic
+
+model Player {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique @db.VarChar(50)
+  nickname     String    @unique @db.VarChar(50)
+  passwordHash String?   @map("password_hash")
+  currency     String    @db.Char(3)
+  country      String?   @db.Char(2)
+  gender       Boolean?
+  isBlocked    Boolean   @default(false) @map("is_blocked")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  wallet       Wallet?
+  sessions     Session[]
+  transactions Transaction[]
+
+  @@map("players")
+}
+
+model Wallet {
+  id           Int     @id @default(autoincrement())
+  playerId     Int     @unique @map("player_id")
+  realBalance  Decimal @default(0) @map("real_balance") @db.Decimal(18, 4)
+  bonusMoney   Decimal @default(0) @map("bonus_money") @db.Decimal(18, 4)
+  frozenMoney  Decimal @default(0) @map("frozen_money") @db.Decimal(18, 4)
+  bonusWin     Decimal @default(0) @map("bonus_win") @db.Decimal(18, 4)
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@map("wallets")
+}
+
+model Session {
+  id        Int       @id @default(autoincrement())
+  playerId  Int       @map("player_id")
+  token     String    @unique @db.VarChar(50)
+  isActive  Boolean   @default(true) @map("is_active")
+  expiresAt DateTime? @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@index([playerId])
+  @@map("sessions")
+}
+
+model Transaction {
+  id                    Int      @id @default(autoincrement())
+  playerId              Int      @map("player_id")
+  rgsTransactionId      BigInt   @unique @map("rgs_transaction_id")
+  rgsRelatedTransactionId BigInt? @map("rgs_related_transaction_id")
+  platformTransactionId BigInt?  @map("platform_transaction_id")
+  typeId                Int      @map("type_id")
+  direction             String   @db.VarChar(20) // withdraw | deposit | rollback
+  amount                Decimal  @db.Decimal(18, 4)
+  currency              String   @db.Char(3)
+  gameId                Int?     @map("game_id")
+  bonusDefId            Int?     @map("bonus_def_id")
+  status                String   @default("completed") @db.VarChar(20)
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@index([playerId])
+  @@map("transactions")
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  action    String   @db.VarChar(50)
+  playerId  Int?     @map("player_id")
+  request   Json?
+  response  Json?
+  ip        String?  @db.VarChar(45)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([action])
+  @@index([playerId])
+  @@map("audit_logs")
+}
