@@ -7,40 +7,62 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Minimal schema — expand when implementing wallet logic
-
 model Player {
-  id           Int       @id @default(autoincrement())
-  username     String    @unique @db.VarChar(50)
-  nickname     String    @unique @db.VarChar(50)
-  passwordHash String?   @map("password_hash")
-  currency     String    @db.Char(3)
-  country      String?   @db.Char(2)
+  id           Int      @id @default(autoincrement())
+  username     String   @unique @db.VarChar(50)
+  nickname     String   @unique @db.VarChar(50)
+  passwordHash String?  @map("password_hash")
+  currency     String   @db.Char(3)
+  country      String?  @db.Char(2)
   gender       Boolean?
-  isBlocked    Boolean   @default(false) @map("is_blocked")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  isBlocked    Boolean  @default(false) @map("is_blocked")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   wallet       Wallet?
   sessions     Session[]
-  transactions Transaction[]
+  authSessions AuthSession[]
+  transactions     Transaction[]
+  ledger           WalletLedger[]
+  paymentRequests  PaymentRequest[]
 
+  @@index([isBlocked])
+  @@index([createdAt])
+  @@index([username])
   @@map("players")
 }
 
+/// Frontend site login sessions (≠ RGS game Session)
+model AuthSession {
+  id        Int      @id @default(autoincrement())
+  playerId  Int      @map("player_id")
+  jti       String   @unique @db.VarChar(64)
+  isActive  Boolean  @default(true) @map("is_active")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@index([playerId, isActive])
+  @@index([expiresAt])
+  @@map("auth_sessions")
+}
+
 model Wallet {
-  id           Int     @id @default(autoincrement())
-  playerId     Int     @unique @map("player_id")
-  realBalance  Decimal @default(0) @map("real_balance") @db.Decimal(18, 4)
-  bonusMoney   Decimal @default(0) @map("bonus_money") @db.Decimal(18, 4)
-  frozenMoney  Decimal @default(0) @map("frozen_money") @db.Decimal(18, 4)
-  bonusWin     Decimal @default(0) @map("bonus_win") @db.Decimal(18, 4)
+  id          Int     @id @default(autoincrement())
+  playerId    Int     @unique @map("player_id")
+  realBalance Decimal @default(0) @map("real_balance") @db.Decimal(18, 4)
+  bonusMoney  Decimal @default(0) @map("bonus_money") @db.Decimal(18, 4)
+  frozenMoney Decimal @default(0) @map("frozen_money") @db.Decimal(18, 4)
+  bonusWin    Decimal @default(0) @map("bonus_win") @db.Decimal(18, 4)
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   player Player @relation(fields: [playerId], references: [id])
 
   @@map("wallets")
 }
 
+/// RGS game launch tokens
 model Session {
   id        Int       @id @default(autoincrement())
   playerId  Int       @map("player_id")
@@ -51,41 +73,141 @@ model Session {
 
   player Player @relation(fields: [playerId], references: [id])
 
-  @@index([playerId])
+  @@index([playerId, isActive])
+  @@index([expiresAt])
   @@map("sessions")
 }
 
+/// RGS financial callbacks only
 model Transaction {
-  id                    Int      @id @default(autoincrement())
-  playerId              Int      @map("player_id")
-  rgsTransactionId      BigInt   @unique @map("rgs_transaction_id")
-  rgsRelatedTransactionId BigInt? @map("rgs_related_transaction_id")
-  platformTransactionId BigInt?  @map("platform_transaction_id")
-  typeId                Int      @map("type_id")
-  direction             String   @db.VarChar(20) // withdraw | deposit | rollback
-  amount                Decimal  @db.Decimal(18, 4)
-  currency              String   @db.Char(3)
-  gameId                Int?     @map("game_id")
-  bonusDefId            Int?     @map("bonus_def_id")
-  status                String   @default("completed") @db.VarChar(20)
-  createdAt             DateTime @default(now()) @map("created_at")
+  id                      Int      @id @default(autoincrement())
+  playerId                Int      @map("player_id")
+  rgsTransactionId        BigInt   @unique @map("rgs_transaction_id")
+  rgsRelatedTransactionId BigInt?  @map("rgs_related_transaction_id")
+  platformTransactionId   BigInt?  @map("platform_transaction_id")
+  typeId                  Int      @map("type_id")
+  direction               String   @db.VarChar(20)
+  amount                  Decimal  @db.Decimal(18, 4)
+  currency                String   @db.Char(3)
+  gameId                  Int?     @map("game_id")
+  bonusDefId              Int?     @map("bonus_def_id")
+  status                  String   @default("completed") @db.VarChar(20)
+  createdAt               DateTime @default(now()) @map("created_at")
 
   player Player @relation(fields: [playerId], references: [id])
 
-  @@index([playerId])
+  @@index([playerId, createdAt(sort: Desc)])
+  @@index([direction, createdAt(sort: Desc)])
+  @@index([status])
+  @@index([gameId])
+  @@index([rgsRelatedTransactionId])
   @@map("transactions")
+}
+
+/// Non-RGS money moves (admin adjust, future payments)
+model WalletLedger {
+  id           Int      @id @default(autoincrement())
+  playerId     Int      @map("player_id")
+  adminId      Int?     @map("admin_id")
+  type         String   @db.VarChar(30) // admin_credit | admin_debit | ...
+  amount       Decimal  @db.Decimal(18, 4)
+  balanceAfter Decimal  @map("balance_after") @db.Decimal(18, 4)
+  currency     String   @db.Char(3)
+  note         String?  @db.VarChar(255)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  player Player     @relation(fields: [playerId], references: [id])
+  admin  AdminUser? @relation(fields: [adminId], references: [id])
+
+  @@index([playerId, createdAt(sort: Desc)])
+  @@index([adminId, createdAt(sort: Desc)])
+  @@index([type, createdAt(sort: Desc)])
+  @@map("wallet_ledgers")
+}
+
+model AdminUser {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique @db.VarChar(50)
+  passwordHash String   @map("password_hash")
+  displayName  String   @map("display_name") @db.VarChar(100)
+  role         String   @default("admin") @db.VarChar(20) // admin | operator
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  sessions        AdminAuthSession[]
+  ledgers         WalletLedger[]
+  paymentReviews  PaymentRequest[]
+
+  @@index([role, isActive])
+  @@map("admin_users")
+}
+
+model AdminAuthSession {
+  id        Int      @id @default(autoincrement())
+  adminId   Int      @map("admin_id")
+  jti       String   @unique @db.VarChar(64)
+  isActive  Boolean  @default(true) @map("is_active")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  admin AdminUser @relation(fields: [adminId], references: [id])
+
+  @@index([adminId, isActive])
+  @@index([expiresAt])
+  @@map("admin_auth_sessions")
+}
+
+model PlatformSetting {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique @db.VarChar(100)
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_settings")
+}
+
+/// Manual deposit/withdraw — player requests MMK, wallet credits/debits USD
+model PaymentRequest {
+  id           Int       @id @default(autoincrement())
+  playerId     Int       @map("player_id")
+  type         String    @db.VarChar(20) // deposit | withdraw
+  status       String    @default("pending") @db.VarChar(20) // pending | approved | rejected | cancelled
+  amountMmk    Decimal   @map("amount_mmk") @db.Decimal(18, 2)
+  amountUsd    Decimal   @map("amount_usd") @db.Decimal(18, 4)
+  rateUsed     Decimal   @map("rate_used") @db.Decimal(18, 4) // MMK per 1 USD at request time
+  method       String?   @db.VarChar(50) // kbz | wave | bank | cash | ...
+  reference    String?   @db.VarChar(100) // slip / txn ref
+  playerNote   String?   @map("player_note") @db.VarChar(255)
+  adminId      Int?      @map("admin_id")
+  adminNote    String?   @map("admin_note") @db.VarChar(255)
+  reviewedAt   DateTime? @map("reviewed_at")
+  ledgerId     Int?      @map("ledger_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  player Player     @relation(fields: [playerId], references: [id])
+  admin  AdminUser? @relation(fields: [adminId], references: [id])
+
+  @@index([playerId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([type, status])
+  @@index([adminId, reviewedAt(sort: Desc)])
+  @@map("payment_requests")
 }
 
 model AuditLog {
   id        Int      @id @default(autoincrement())
   action    String   @db.VarChar(50)
   playerId  Int?     @map("player_id")
+  adminId   Int?     @map("admin_id")
   request   Json?
   response  Json?
   ip        String?  @db.VarChar(45)
   createdAt DateTime @default(now()) @map("created_at")
 
-  @@index([action])
-  @@index([playerId])
+  @@index([action, createdAt(sort: Desc)])
+  @@index([playerId, createdAt(sort: Desc)])
+  @@index([adminId, createdAt(sort: Desc)])
   @@map("audit_logs")
 }

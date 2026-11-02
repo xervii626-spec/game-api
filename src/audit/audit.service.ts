@@ -8,6 +8,7 @@ export class AuditService {
   async log(params: {
     action: string;
     playerId?: number;
+    adminId?: number;
     request?: unknown;
     response?: unknown;
     ip?: string;
@@ -16,6 +17,7 @@ export class AuditService {
       data: {
         action: params.action,
         playerId: params.playerId,
+        adminId: params.adminId,
         request: params.request as object | undefined,
         response: params.response as object | undefined,
         ip: params.ip,

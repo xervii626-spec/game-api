@@ -31,6 +31,24 @@ npm run start:dev
 
 Swagger: http://localhost:5000/docs
 
+## Step 1 — Auth (player site)
+
+```bash
+# Register
+curl -X POST http://localhost:5000/auth/register -H "Content-Type: application/json" -d "{\"username\":\"user1\",\"nickname\":\"User One\",\"password\":\"secret12\",\"currency\":\"USD\",\"country\":\"MM\"}"
+
+# Login
+curl -X POST http://localhost:5000/auth/login -H "Content-Type: application/json" -d "{\"username\":\"user1\",\"password\":\"secret12\"}"
+
+# Me (Bearer token)
+curl http://localhost:5000/auth/me -H "Authorization: Bearer ACCESS_TOKEN"
+
+# Logout
+curl -X POST http://localhost:5000/auth/logout -H "Authorization: Bearer ACCESS_TOKEN"
+```
+
+Note: Auth JWT ≠ RGS game session token (`/sessions`).
+
 ## Phase A — test APIs
 
 ```bash

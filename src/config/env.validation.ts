@@ -11,7 +11,10 @@ const envSchema = z.object({
   RGS_IP_WHITELIST: z.string().optional(),
   FRONTEND_URL: z.string().optional(),
   REDIS_URL: z.string().optional(),
+  JWT_SECRET: z.string().optional(),
+  JWT_EXPIRES_HOURS: z.coerce.number().optional(),
 });
+
 
 export type EnvVars = z.infer<typeof envSchema>;
 

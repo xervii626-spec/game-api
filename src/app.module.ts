@@ -11,6 +11,10 @@ import { LaunchModule } from './launch/launch.module';
 import { BonusModule } from './bonus/bonus.module';
 import { AuditModule } from './audit/audit.module';
 import { SessionsModule } from './sessions/sessions.module';
+import { PlayerWalletModule } from './player-wallet/player-wallet.module';
+import { AdminModule } from './admin/admin.module';
+import { SettingsModule } from './settings/settings.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -29,10 +33,15 @@ import { SessionsModule } from './sessions/sessions.module';
     PlayersModule,
     SessionsModule,
     WalletModule,
+    PlayerWalletModule,
     GamesModule,
     LaunchModule,
     BonusModule,
     AuditModule,
+    SettingsModule,
+    PaymentsModule,
+    AdminModule,
   ],
 })
 export class AppModule {}
+
