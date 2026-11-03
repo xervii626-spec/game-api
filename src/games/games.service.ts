@@ -21,10 +21,18 @@ export class GamesService {
       this.config.get<string>('cmsGamesUrl') ??
       'https://www.cmsbetconstruct.com/casino/getGames';
 
+    // CMS getGames often fails (status -1, empty games) when limit is too high.
+    const rawLimit = Number(query.limit ?? 30);
+    const limit = String(
+      Number.isFinite(rawLimit)
+        ? Math.min(Math.max(Math.trunc(rawLimit), 1), 30)
+        : 30,
+    );
+
     const params: Record<string, string> = {
       partner_id: query.partner_id || partnerId,
       offset: query.offset ?? '0',
-      limit: query.limit ?? '30',
+      limit,
     };
     if (query.category) params.category = query.category;
     if (query.provider) params.Provider = query.provider;
