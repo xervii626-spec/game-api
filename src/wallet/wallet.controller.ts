@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { IpWhitelistGuard } from '../common/guards/ip-whitelist.guard';
 import { PublicKeyGuard } from '../common/guards/public-key.guard';
@@ -11,7 +11,7 @@ import { RollbackDto } from './dto/rollback.dto';
 
 /**
  * RGS → Partner wallet callbacks (Phase B)
- * Confirm exact path names with BetConstruct when sharing staging/prod endpoints.
+ * HTTP 200 required — BetConstruct test tool treats non-200 as connection/HTTP failure.
  */
 @ApiTags('wallet')
 @Controller('wallet')
@@ -20,26 +20,31 @@ export class WalletController {
   constructor(private readonly walletService: WalletService) {}
 
   @Post('authenticate')
+  @HttpCode(200)
   authenticate(@Body() dto: AuthenticateDto) {
     return this.walletService.authenticate(dto);
   }
 
   @Post('get-balance')
+  @HttpCode(200)
   getBalance(@Body() dto: GetBalanceDto) {
     return this.walletService.getBalance(dto);
   }
 
   @Post('withdraw')
+  @HttpCode(200)
   withdraw(@Body() dto: WithdrawDto) {
     return this.walletService.withdraw(dto);
   }
 
   @Post('deposit')
+  @HttpCode(200)
   deposit(@Body() dto: DepositDto) {
     return this.walletService.deposit(dto);
   }
 
   @Post('rollback')
+  @HttpCode(200)
   rollback(@Body() dto: RollbackDto) {
     return this.walletService.rollback(dto);
   }
