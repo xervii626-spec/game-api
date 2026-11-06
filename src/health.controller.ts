@@ -18,7 +18,7 @@ export class HealthController {
         Rollback: 'POST /Rollback or /wallet/Rollback',
       },
       rgsEndPointHint:
-        'Test tool EndPoint = https://<host> (no method name)',
+        'Test tool EndPoint = https://<host> OR https://<host>/wallet (no method name)',
     };
   }
 

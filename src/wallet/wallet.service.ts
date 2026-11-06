@@ -311,9 +311,11 @@ export class WalletService {
       return res;
     } catch (e) {
       if (this.isNotEnough(e)) {
+        // Test tool expected shape: Token "" / PlayerId 0 on insufficient funds
         const res = rgsFail(RgsError.NOT_ENOUGH_BALANCE, 'Not Enough Balance', {
-          PlayerId: dto.PlayerId,
-          Token: dto.Token,
+          PlatformTransactionId: 0,
+          PlayerId: 0,
+          Token: '',
         });
         await this.auditSafe('Withdraw', dto.PlayerId, dto, res);
         return res;
