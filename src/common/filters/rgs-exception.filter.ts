@@ -22,7 +22,7 @@ export class RgsExceptionFilter implements ExceptionFilter {
     const url = req.url ?? '';
 
     const isWallet =
-      /\/(wallet\/)?(Authentication|authenticate|GetBalance|get-balance|getBalance|Withdraw|withdraw|Deposit|deposit|Rollback|rollback)(\?|$)/i.test(
+      /\/(wallet\/)?(Authentication|authenticate|GetBalance|get-balance|getBalance|WithdrawAndDeposit|withdraw-and-deposit|withdrawAndDeposit|Withdraw|withdraw|Deposit|deposit|Rollback|rollback)(\?|$)/i.test(
         url,
       );
 

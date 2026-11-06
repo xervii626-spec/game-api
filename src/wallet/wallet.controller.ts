@@ -7,6 +7,7 @@ import { AuthenticateDto } from './dto/authenticate.dto';
 import { GetBalanceDto } from './dto/get-balance.dto';
 import { WithdrawDto } from './dto/withdraw.dto';
 import { DepositDto } from './dto/deposit.dto';
+import { WithdrawAndDepositDto } from './dto/withdraw-and-deposit.dto';
 import { RollbackDto } from './dto/rollback.dto';
 
 /**
@@ -69,6 +70,19 @@ export class WalletController {
   @HttpCode(200)
   deposit(@Body() dto: DepositDto) {
     return this.walletService.deposit(dto);
+  }
+
+  @Post([
+    'WithdrawAndDeposit',
+    'withdraw-and-deposit',
+    'withdrawAndDeposit',
+    'wallet/WithdrawAndDeposit',
+    'wallet/withdraw-and-deposit',
+    'wallet/withdrawAndDeposit',
+  ])
+  @HttpCode(200)
+  withdrawAndDeposit(@Body() dto: WithdrawAndDepositDto) {
+    return this.walletService.withdrawAndDeposit(dto);
   }
 
   @Post([

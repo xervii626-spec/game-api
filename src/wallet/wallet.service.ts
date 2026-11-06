@@ -10,6 +10,7 @@ import { AuthenticateDto } from './dto/authenticate.dto';
 import { GetBalanceDto } from './dto/get-balance.dto';
 import { WithdrawDto } from './dto/withdraw.dto';
 import { DepositDto } from './dto/deposit.dto';
+import { WithdrawAndDepositDto } from './dto/withdraw-and-deposit.dto';
 import { RollbackDto } from './dto/rollback.dto';
 import { RgsError, rgsFail, rgsOk } from './rgs-response';
 
@@ -138,10 +139,19 @@ export class WalletService {
     }
 
     const session = await this.sessions.findValidSession(dto.Token);
-    if (!session || session.playerId !== dto.PlayerId) {
+    if (!session) {
       const res = rgsFail(RgsError.INVALID_TOKEN, 'Invalid Token', {
         PlayerId: dto.PlayerId,
         Token: dto.Token,
+      });
+      await this.auditSafe('GetBalance', dto.PlayerId, dto, res);
+      return res;
+    }
+    if (session.playerId !== dto.PlayerId) {
+      const res = rgsFail(RgsError.WRONG_PLAYER_ID, 'Wrong Player Id', {
+        PlatformTransactionId: 0,
+        PlayerId: 0,
+        Token: '',
       });
       await this.auditSafe('GetBalance', dto.PlayerId, dto, res);
       return res;
@@ -151,7 +161,11 @@ export class WalletService {
       where: { id: dto.PlayerId },
     });
     if (!player) {
-      const res = rgsFail(RgsError.WRONG_PLAYER_ID, 'Wrong Player Id');
+      const res = rgsFail(RgsError.WRONG_PLAYER_ID, 'Wrong Player Id', {
+        PlatformTransactionId: 0,
+        PlayerId: 0,
+        Token: '',
+      });
       await this.auditSafe('GetBalance', dto.PlayerId, dto, res);
       return res;
     }
@@ -190,10 +204,20 @@ export class WalletService {
     }
 
     const session = await this.sessions.findValidSession(dto.Token);
-    if (!session || session.playerId !== dto.PlayerId) {
+    if (!session) {
       const res = rgsFail(RgsError.INVALID_TOKEN, 'Invalid Token', {
+        PlatformTransactionId: 0,
         PlayerId: dto.PlayerId,
         Token: dto.Token,
+      });
+      await this.auditSafe('Withdraw', dto.PlayerId, dto, res);
+      return res;
+    }
+    if (session.playerId !== dto.PlayerId) {
+      const res = rgsFail(RgsError.WRONG_PLAYER_ID, 'Wrong Player Id', {
+        PlatformTransactionId: 0,
+        PlayerId: 0,
+        Token: '',
       });
       await this.auditSafe('Withdraw', dto.PlayerId, dto, res);
       return res;
@@ -203,7 +227,11 @@ export class WalletService {
       where: { id: dto.PlayerId },
     });
     if (!player) {
-      const res = rgsFail(RgsError.WRONG_PLAYER_ID, 'Wrong Player Id');
+      const res = rgsFail(RgsError.WRONG_PLAYER_ID, 'Wrong Player Id', {
+        PlatformTransactionId: 0,
+        PlayerId: 0,
+        Token: '',
+      });
       await this.auditSafe('Withdraw', dto.PlayerId, dto, res);
       return res;
     }
@@ -316,10 +344,20 @@ export class WalletService {
 
     // Docs: process even with expired token — only check token exists
     const session = await this.sessions.findExistingSession(dto.Token);
-    if (!session || session.playerId !== dto.PlayerId) {
+    if (!session) {
       const res = rgsFail(RgsError.INVALID_TOKEN, 'Invalid Token', {
+        PlatformTransactionId: 0,
         PlayerId: dto.PlayerId,
         Token: dto.Token,
+      });
+      await this.auditSafe('Deposit', dto.PlayerId, dto, res);
+      return res;
+    }
+    if (session.playerId !== dto.PlayerId) {
+      const res = rgsFail(RgsError.WRONG_PLAYER_ID, 'Wrong Player Id', {
+        PlatformTransactionId: 0,
+        PlayerId: 0,
+        Token: '',
       });
       await this.auditSafe('Deposit', dto.PlayerId, dto, res);
       return res;
@@ -329,7 +367,11 @@ export class WalletService {
       where: { id: dto.PlayerId },
     });
     if (!player) {
-      const res = rgsFail(RgsError.WRONG_PLAYER_ID, 'Wrong Player Id');
+      const res = rgsFail(RgsError.WRONG_PLAYER_ID, 'Wrong Player Id', {
+        PlatformTransactionId: 0,
+        PlayerId: 0,
+        Token: '',
+      });
       await this.auditSafe('Deposit', dto.PlayerId, dto, res);
       return res;
     }
@@ -423,6 +465,175 @@ export class WalletService {
     }
   }
 
+  // ─── WithdrawAndDeposit (bet + win in one call) ─────────────
+  async withdrawAndDeposit(dto: WithdrawAndDepositDto) {
+    if (!this.operatorOk(dto.OperatorId)) {
+      return rgsFail(RgsError.GENERAL_ERROR, 'Wrong OperatorId');
+    }
+
+    const session = await this.sessions.findValidSession(dto.Token);
+    if (!session) {
+      const res = rgsFail(RgsError.INVALID_TOKEN, 'Invalid Token', {
+        PlatformTransactionId: 0,
+        PlayerId: dto.PlayerId,
+        Token: dto.Token,
+      });
+      await this.auditSafe('WithdrawAndDeposit', dto.PlayerId, dto, res);
+      return res;
+    }
+    if (session.playerId !== dto.PlayerId) {
+      const res = rgsFail(RgsError.WRONG_PLAYER_ID, 'Wrong Player Id', {
+        PlatformTransactionId: 0,
+        PlayerId: 0,
+        Token: '',
+      });
+      await this.auditSafe('WithdrawAndDeposit', dto.PlayerId, dto, res);
+      return res;
+    }
+
+    const player = await this.prisma.player.findUnique({
+      where: { id: dto.PlayerId },
+    });
+    if (!player) {
+      const res = rgsFail(RgsError.WRONG_PLAYER_ID, 'Wrong Player Id', {
+        PlatformTransactionId: 0,
+        PlayerId: 0,
+        Token: '',
+      });
+      await this.auditSafe('WithdrawAndDeposit', dto.PlayerId, dto, res);
+      return res;
+    }
+    if (player.isBlocked) {
+      const res = rgsFail(RgsError.PLAYER_BLOCKED, 'Player Is Blocked');
+      await this.auditSafe('WithdrawAndDeposit', dto.PlayerId, dto, res);
+      return res;
+    }
+    if (player.currency !== dto.Currency) {
+      const res = rgsFail(RgsError.WRONG_AMOUNT, 'Wrong Transaction Amount / Currency');
+      await this.auditSafe('WithdrawAndDeposit', dto.PlayerId, dto, res);
+      return res;
+    }
+
+    const rgsId = BigInt(dto.RGSTransactionId);
+    const bonusMode = dto.BonusDefId != null;
+
+    try {
+      const result = await this.prisma.$transaction(async (tx) => {
+        const existing = await tx.transaction.findUnique({
+          where: { rgsTransactionId: rgsId },
+        });
+        if (existing) {
+          return { kind: 'dup' as const };
+        }
+
+        if (bonusMode) {
+          await this.balances.debitBonusWallets(dto.PlayerId, dto.WithdrawAmount, tx);
+          const snap = await this.balances.creditBonusWin(
+            dto.PlayerId,
+            dto.DepositAmount,
+            tx,
+          );
+          const created = await tx.transaction.create({
+            data: {
+              playerId: dto.PlayerId,
+              rgsTransactionId: rgsId,
+              typeId: dto.TypeId,
+              direction: 'withdraw_deposit',
+              amount: new Prisma.Decimal(dto.WithdrawAmount),
+              currency: dto.Currency,
+              gameId: dto.GameId,
+              bonusDefId: dto.BonusDefId ?? null,
+              status: 'completed',
+            },
+          });
+          await tx.transaction.update({
+            where: { id: created.id },
+            data: { platformTransactionId: BigInt(created.id) },
+          });
+          return {
+            kind: 'ok' as const,
+            snap,
+            platformTransactionId: created.id,
+          };
+        }
+
+        await this.balances.debitReal(dto.PlayerId, dto.WithdrawAmount, tx);
+        const snap = await this.balances.creditReal(
+          dto.PlayerId,
+          dto.DepositAmount,
+          tx,
+        );
+        const created = await tx.transaction.create({
+          data: {
+            playerId: dto.PlayerId,
+            rgsTransactionId: rgsId,
+            typeId: dto.TypeId,
+            direction: 'withdraw_deposit',
+            amount: new Prisma.Decimal(dto.WithdrawAmount),
+            currency: dto.Currency,
+            gameId: dto.GameId,
+            bonusDefId: null,
+            status: 'completed',
+          },
+        });
+        await tx.transaction.update({
+          where: { id: created.id },
+          data: { platformTransactionId: BigInt(created.id) },
+        });
+        return {
+          kind: 'ok' as const,
+          snap,
+          platformTransactionId: created.id,
+        };
+      });
+
+      if (result.kind === 'dup') {
+        const res = rgsFail(
+          RgsError.TRANSACTION_ALREADY_COMPLETE,
+          'Transaction Already Complete',
+          { PlayerId: dto.PlayerId, Token: dto.Token },
+        );
+        await this.auditSafe('WithdrawAndDeposit', dto.PlayerId, dto, res);
+        return res;
+      }
+
+      const total = this.balances.resolveTotal(result.snap, bonusMode);
+      const res = rgsOk({
+        PlayerId: dto.PlayerId,
+        Token: dto.Token,
+        TotalBalance: total,
+        PlatformTransactionId: result.platformTransactionId,
+      });
+      await this.auditSafe('WithdrawAndDeposit', dto.PlayerId, dto, res);
+      return res;
+    } catch (e) {
+      if (this.isNotEnough(e)) {
+        const res = rgsFail(RgsError.NOT_ENOUGH_BALANCE, 'Not Enough Balance', {
+          PlatformTransactionId: 0,
+          PlayerId: dto.PlayerId,
+          Token: dto.Token,
+        });
+        await this.auditSafe('WithdrawAndDeposit', dto.PlayerId, dto, res);
+        return res;
+      }
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        const res = rgsFail(
+          RgsError.TRANSACTION_ALREADY_COMPLETE,
+          'Transaction Already Complete',
+          { PlayerId: dto.PlayerId, Token: dto.Token },
+        );
+        await this.auditSafe('WithdrawAndDeposit', dto.PlayerId, dto, res);
+        return res;
+      }
+      const res = rgsFail(
+        RgsError.GENERAL_ERROR,
+        e instanceof Error ? e.message : 'General Error',
+      );
+      await this.auditSafe('WithdrawAndDeposit', dto.PlayerId, dto, res);
+      return res;
+    }
+  }
+
   // ─── Rollback ───────────────────────────────────────────────
   async rollback(dto: RollbackDto) {
     if (!this.operatorOk(dto.OperatorId)) {
@@ -431,9 +642,17 @@ export class WalletService {
 
     // Docs: expired token OK if token exists
     const session = await this.sessions.findExistingSession(dto.Token);
-    if (!session || session.playerId !== dto.PlayerId) {
+    if (!session) {
       const res = rgsFail(RgsError.INVALID_TOKEN, 'Invalid Token', {
         Token: dto.Token,
+      });
+      await this.auditSafe('Rollback', dto.PlayerId, dto, res);
+      return res;
+    }
+    if (session.playerId !== dto.PlayerId) {
+      const res = rgsFail(RgsError.WRONG_PLAYER_ID, 'Wrong Player Id', {
+        PlayerId: 0,
+        Token: '',
       });
       await this.auditSafe('Rollback', dto.PlayerId, dto, res);
       return res;

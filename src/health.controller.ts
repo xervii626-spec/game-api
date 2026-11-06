@@ -13,10 +13,12 @@ export class HealthController {
         GetBalance: 'POST /GetBalance or /wallet/GetBalance',
         Withdraw: 'POST /Withdraw or /wallet/Withdraw',
         Deposit: 'POST /Deposit or /wallet/Deposit',
+        WithdrawAndDeposit:
+          'POST /WithdrawAndDeposit or /wallet/WithdrawAndDeposit',
         Rollback: 'POST /Rollback or /wallet/Rollback',
       },
       rgsEndPointHint:
-        'Test tool EndPoint = https://<host> OR https://<host>/wallet (no method name)',
+        'Test tool EndPoint = https://<host> (no method name)',
     };
   }
 
