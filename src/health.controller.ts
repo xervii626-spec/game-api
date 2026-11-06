@@ -9,11 +9,11 @@ export class HealthController {
       service: 'game-api',
       docs: '/docs',
       wallet: {
-        authenticate: 'POST /wallet/authenticate',
-        getBalance: 'POST /wallet/get-balance',
-        withdraw: 'POST /wallet/withdraw',
-        deposit: 'POST /wallet/deposit',
-        rollback: 'POST /wallet/rollback',
+        Authentication: 'POST /wallet/Authentication',
+        GetBalance: 'POST /wallet/GetBalance',
+        Withdraw: 'POST /wallet/Withdraw',
+        Deposit: 'POST /wallet/Deposit',
+        Rollback: 'POST /wallet/Rollback',
       },
     };
   }

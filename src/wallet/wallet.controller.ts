@@ -10,8 +10,10 @@ import { DepositDto } from './dto/deposit.dto';
 import { RollbackDto } from './dto/rollback.dto';
 
 /**
- * RGS → Partner wallet callbacks (Phase B)
- * HTTP 200 required — BetConstruct test tool treats non-200 as connection/HTTP failure.
+ * RGS → Partner wallet callbacks.
+ * Primary paths match Casino Integration API method names (PascalCase),
+ * e.g. POST /wallet/Authentication — as required by BetConstruct.
+ * Lowercase aliases kept for older clients/docs.
  */
 @ApiTags('wallet')
 @Controller('wallet')
@@ -19,31 +21,31 @@ import { RollbackDto } from './dto/rollback.dto';
 export class WalletController {
   constructor(private readonly walletService: WalletService) {}
 
-  @Post('authenticate')
+  @Post(['Authentication', 'authenticate'])
   @HttpCode(200)
   authenticate(@Body() dto: AuthenticateDto) {
     return this.walletService.authenticate(dto);
   }
 
-  @Post('get-balance')
+  @Post(['GetBalance', 'get-balance', 'getBalance'])
   @HttpCode(200)
   getBalance(@Body() dto: GetBalanceDto) {
     return this.walletService.getBalance(dto);
   }
 
-  @Post('withdraw')
+  @Post(['Withdraw', 'withdraw'])
   @HttpCode(200)
   withdraw(@Body() dto: WithdrawDto) {
     return this.walletService.withdraw(dto);
   }
 
-  @Post('deposit')
+  @Post(['Deposit', 'deposit'])
   @HttpCode(200)
   deposit(@Body() dto: DepositDto) {
     return this.walletService.deposit(dto);
   }
 
-  @Post('rollback')
+  @Post(['Rollback', 'rollback'])
   @HttpCode(200)
   rollback(@Body() dto: RollbackDto) {
     return this.walletService.rollback(dto);
