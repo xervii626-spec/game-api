@@ -11,41 +11,72 @@ import { RollbackDto } from './dto/rollback.dto';
 
 /**
  * RGS → Partner wallet callbacks.
- * Primary paths match Casino Integration API method names (PascalCase),
- * e.g. POST /wallet/Authentication — as required by BetConstruct.
- * Lowercase aliases kept for older clients/docs.
+ *
+ * BetConstruct test tool EndPoint is the BASE only (no method name).
+ * It appends /Authentication, /GetBalance, … itself.
+ *
+ * Support both:
+ * - EndPoint = https://host          → POST /Authentication
+ * - EndPoint = https://host/wallet   → POST /wallet/Authentication
  */
 @ApiTags('wallet')
-@Controller('wallet')
+@Controller()
 @UseGuards(IpWhitelistGuard, PublicKeyGuard)
 export class WalletController {
   constructor(private readonly walletService: WalletService) {}
 
-  @Post(['Authentication', 'authenticate'])
+  @Post([
+    'Authentication',
+    'authenticate',
+    'wallet/Authentication',
+    'wallet/authenticate',
+  ])
   @HttpCode(200)
   authenticate(@Body() dto: AuthenticateDto) {
     return this.walletService.authenticate(dto);
   }
 
-  @Post(['GetBalance', 'get-balance', 'getBalance'])
+  @Post([
+    'GetBalance',
+    'get-balance',
+    'getBalance',
+    'wallet/GetBalance',
+    'wallet/get-balance',
+    'wallet/getBalance',
+  ])
   @HttpCode(200)
   getBalance(@Body() dto: GetBalanceDto) {
     return this.walletService.getBalance(dto);
   }
 
-  @Post(['Withdraw', 'withdraw'])
+  @Post([
+    'Withdraw',
+    'withdraw',
+    'wallet/Withdraw',
+    'wallet/withdraw',
+  ])
   @HttpCode(200)
   withdraw(@Body() dto: WithdrawDto) {
     return this.walletService.withdraw(dto);
   }
 
-  @Post(['Deposit', 'deposit'])
+  @Post([
+    'Deposit',
+    'deposit',
+    'wallet/Deposit',
+    'wallet/deposit',
+  ])
   @HttpCode(200)
   deposit(@Body() dto: DepositDto) {
     return this.walletService.deposit(dto);
   }
 
-  @Post(['Rollback', 'rollback'])
+  @Post([
+    'Rollback',
+    'rollback',
+    'wallet/Rollback',
+    'wallet/rollback',
+  ])
   @HttpCode(200)
   rollback(@Body() dto: RollbackDto) {
     return this.walletService.rollback(dto);

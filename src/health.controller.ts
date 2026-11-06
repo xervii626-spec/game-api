@@ -9,12 +9,14 @@ export class HealthController {
       service: 'game-api',
       docs: '/docs',
       wallet: {
-        Authentication: 'POST /wallet/Authentication',
-        GetBalance: 'POST /wallet/GetBalance',
-        Withdraw: 'POST /wallet/Withdraw',
-        Deposit: 'POST /wallet/Deposit',
-        Rollback: 'POST /wallet/Rollback',
+        Authentication: 'POST /Authentication or /wallet/Authentication',
+        GetBalance: 'POST /GetBalance or /wallet/GetBalance',
+        Withdraw: 'POST /Withdraw or /wallet/Withdraw',
+        Deposit: 'POST /Deposit or /wallet/Deposit',
+        Rollback: 'POST /Rollback or /wallet/Rollback',
       },
+      rgsEndPointHint:
+        'Test tool EndPoint = https://<host> OR https://<host>/wallet (no method name)',
     };
   }
 

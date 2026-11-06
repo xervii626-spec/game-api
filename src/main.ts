@@ -3,9 +3,13 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { RgsExceptionFilter } from './common/filters/rgs-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Render / proxies: real client IP in X-Forwarded-For
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
   app.use(helmet());
   const corsOrigins = (process.env.FRONTEND_URL ?? "http://localhost:3003")
@@ -17,6 +21,8 @@ async function bootstrap() {
     origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
     credentials: true,
   });
+
+  app.useGlobalFilters(new RgsExceptionFilter());
 
   app.useGlobalPipes(
     new ValidationPipe({
