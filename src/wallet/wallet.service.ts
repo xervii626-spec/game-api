@@ -567,6 +567,8 @@ export class WalletService {
           return { kind: 'dup' as const };
         }
 
+        // Store as withdraw + linked deposit so Rollback can reverse both
+        // (same pattern as separate Withdraw then Deposit).
         if (bonusMode) {
           await this.balances.debitBonusWallets(dto.PlayerId, dto.WithdrawAmount, tx);
           const snap = await this.balances.creditBonusWin(
@@ -574,12 +576,12 @@ export class WalletService {
             dto.DepositAmount,
             tx,
           );
-          const created = await tx.transaction.create({
+          const withdrawTx = await tx.transaction.create({
             data: {
               playerId: dto.PlayerId,
               rgsTransactionId: rgsId,
               typeId: dto.TypeId,
-              direction: 'withdraw_deposit',
+              direction: 'withdraw',
               amount: new Prisma.Decimal(dto.WithdrawAmount),
               currency: dto.Currency,
               gameId: dto.GameId,
@@ -588,13 +590,33 @@ export class WalletService {
             },
           });
           await tx.transaction.update({
-            where: { id: created.id },
-            data: { platformTransactionId: BigInt(created.id) },
+            where: { id: withdrawTx.id },
+            data: { platformTransactionId: BigInt(withdrawTx.id) },
           });
+          if (dto.DepositAmount > 0) {
+            const depositTx = await tx.transaction.create({
+              data: {
+                playerId: dto.PlayerId,
+                rgsTransactionId: -rgsId,
+                rgsRelatedTransactionId: rgsId,
+                typeId: dto.TypeId,
+                direction: 'deposit',
+                amount: new Prisma.Decimal(dto.DepositAmount),
+                currency: dto.Currency,
+                gameId: dto.GameId,
+                bonusDefId: dto.BonusDefId ?? null,
+                status: 'completed',
+              },
+            });
+            await tx.transaction.update({
+              where: { id: depositTx.id },
+              data: { platformTransactionId: BigInt(depositTx.id) },
+            });
+          }
           return {
             kind: 'ok' as const,
             snap,
-            platformTransactionId: created.id,
+            platformTransactionId: withdrawTx.id,
           };
         }
 
@@ -604,12 +626,12 @@ export class WalletService {
           dto.DepositAmount,
           tx,
         );
-        const created = await tx.transaction.create({
+        const withdrawTx = await tx.transaction.create({
           data: {
             playerId: dto.PlayerId,
             rgsTransactionId: rgsId,
             typeId: dto.TypeId,
-            direction: 'withdraw_deposit',
+            direction: 'withdraw',
             amount: new Prisma.Decimal(dto.WithdrawAmount),
             currency: dto.Currency,
             gameId: dto.GameId,
@@ -618,13 +640,33 @@ export class WalletService {
           },
         });
         await tx.transaction.update({
-          where: { id: created.id },
-          data: { platformTransactionId: BigInt(created.id) },
+          where: { id: withdrawTx.id },
+          data: { platformTransactionId: BigInt(withdrawTx.id) },
         });
+        if (dto.DepositAmount > 0) {
+          const depositTx = await tx.transaction.create({
+            data: {
+              playerId: dto.PlayerId,
+              rgsTransactionId: -rgsId,
+              rgsRelatedTransactionId: rgsId,
+              typeId: dto.TypeId,
+              direction: 'deposit',
+              amount: new Prisma.Decimal(dto.DepositAmount),
+              currency: dto.Currency,
+              gameId: dto.GameId,
+              bonusDefId: null,
+              status: 'completed',
+            },
+          });
+          await tx.transaction.update({
+            where: { id: depositTx.id },
+            data: { platformTransactionId: BigInt(depositTx.id) },
+          });
+        }
         return {
           kind: 'ok' as const,
           snap,
-          platformTransactionId: created.id,
+          platformTransactionId: withdrawTx.id,
         };
       });
 
@@ -717,7 +759,11 @@ export class WalletService {
           return { kind: 'ok' as const, snap, bonusMode: original.bonusDefId != null };
         }
 
-        if (original.direction !== 'withdraw') {
+        // Withdraw, WithdrawAndDeposit (legacy single row), or withdraw half of W+D
+        const rollable =
+          original.direction === 'withdraw' ||
+          original.direction === 'withdraw_deposit';
+        if (!rollable) {
           return { kind: 'invalid' as const };
         }
 
@@ -729,7 +775,7 @@ export class WalletService {
           ? await this.balances.creditBonusWin(dto.PlayerId, amount, tx)
           : await this.balances.creditReal(dto.PlayerId, amount, tx);
 
-        // Also reverse related wins (same RGSRelatedTransactionId = this withdraw id)
+        // Also reverse related wins (Deposit / W+D companion with same related id)
         const relatedWins = await tx.transaction.findMany({
           where: {
             playerId: dto.PlayerId,
