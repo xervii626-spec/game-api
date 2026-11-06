@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { bodyForPublicKey } from './stable-json.util';
+import { bodyForPublicKey, bodyForPublicKeyVariants } from './stable-json.util';
 
 /**
  * BetConstruct PublicKey:
@@ -32,5 +32,8 @@ export function verifyPublicKeyFromBody(
   sharedKey: string,
   publicKey: string,
 ): boolean {
-  return verifyPublicKey(bodyForPublicKey(body), sharedKey, publicKey);
+  const pk = publicKey.toLowerCase();
+  return bodyForPublicKeyVariants(body).some(
+    (candidate) => computePublicKey(candidate, sharedKey).toLowerCase() === pk,
+  );
 }

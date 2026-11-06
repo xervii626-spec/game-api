@@ -5,7 +5,6 @@ import {
   IsString,
   Length,
   MaxLength,
-  Min,
 } from 'class-validator';
 
 export class WithdrawDto {
@@ -19,8 +18,8 @@ export class WithdrawDto {
   @MaxLength(50)
   Token!: string;
 
+  /** Allow negative — BC "Wrong Amount" test; reject in service with ErrorId 109 */
   @IsNumber()
-  @Min(0)
   WithdrawAmount!: number;
 
   @IsString()

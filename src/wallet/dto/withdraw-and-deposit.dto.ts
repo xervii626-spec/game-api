@@ -5,7 +5,6 @@ import {
   IsString,
   Length,
   MaxLength,
-  Min,
 } from 'class-validator';
 
 export class WithdrawAndDepositDto {
@@ -20,11 +19,9 @@ export class WithdrawAndDepositDto {
   Token!: string;
 
   @IsNumber()
-  @Min(0)
   WithdrawAmount!: number;
 
   @IsNumber()
-  @Min(0)
   DepositAmount!: number;
 
   @IsString()
