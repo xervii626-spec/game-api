@@ -1,5 +1,6 @@
 import {
   ArgumentsHost,
+  BadRequestException,
   Catch,
   ExceptionFilter,
   ForbiddenException,
@@ -11,9 +12,10 @@ import { RgsError, rgsFail } from '../../wallet/rgs-response';
 
 /**
  * BetConstruct expects HTTP 200 + { HasError, ErrorId, ErrorDescription }.
- * Nest 401/403 JSON makes their test tool say "Partner endpoint did not respond correctly".
+ * Nest 400/401/403 JSON makes their test tool say
+ * "Partner endpoint did not respond correctly".
  */
-@Catch(UnauthorizedException, ForbiddenException)
+@Catch(UnauthorizedException, ForbiddenException, BadRequestException)
 export class RgsExceptionFilter implements ExceptionFilter {
   catch(exception: HttpException, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
@@ -40,6 +42,22 @@ export class RgsExceptionFilter implements ExceptionFilter {
       description = Array.isArray(msg) ? msg.join(', ') : String(msg);
     }
 
-    res.status(200).json(rgsFail(RgsError.GENERAL_ERROR, description));
+    const amountRelated = /amount|DepositAmount|WithdrawAmount/i.test(
+      description,
+    );
+    const errorId = amountRelated
+      ? RgsError.WRONG_AMOUNT
+      : RgsError.GENERAL_ERROR;
+    const errorDescription = amountRelated
+      ? 'Wrong Transaction Amount'
+      : description;
+
+    res.status(200).json(
+      rgsFail(errorId, errorDescription, {
+        PlatformTransactionId: 0,
+        PlayerId: 0,
+        Token: '',
+      }),
+    );
   }
 }

@@ -318,7 +318,7 @@ export class WalletService {
         PlayerId: dto.PlayerId,
         Token: dto.Token,
         TotalBalance: total,
-        PlatformTransactionId: result.platformTransactionId,
+        PlatformTransactionId: Number(result.platformTransactionId),
       });
       await this.auditSafe('Withdraw', dto.PlayerId, dto, res);
       return res;
@@ -391,7 +391,20 @@ export class WalletService {
       return res;
     }
     if (player.currency !== dto.Currency) {
-      const res = rgsFail(RgsError.WRONG_AMOUNT, 'Wrong Transaction Amount / Currency');
+      const res = rgsFail(RgsError.WRONG_AMOUNT, 'Wrong Transaction Amount', {
+        PlatformTransactionId: 0,
+        PlayerId: 0,
+        Token: '',
+      });
+      await this.auditSafe('Deposit', dto.PlayerId, dto, res);
+      return res;
+    }
+    if (dto.DepositAmount < 0) {
+      const res = rgsFail(RgsError.WRONG_AMOUNT, 'Wrong Transaction Amount', {
+        PlatformTransactionId: 0,
+        PlayerId: 0,
+        Token: '',
+      });
       await this.auditSafe('Deposit', dto.PlayerId, dto, res);
       return res;
     }
@@ -457,7 +470,7 @@ export class WalletService {
         PlayerId: dto.PlayerId,
         Token: dto.Token,
         TotalBalance: total,
-        PlatformTransactionId: result.platformTransactionId,
+        PlatformTransactionId: Number(result.platformTransactionId),
       });
       await this.auditSafe('Deposit', dto.PlayerId, dto, res);
       return res;
@@ -630,7 +643,7 @@ export class WalletService {
         PlayerId: dto.PlayerId,
         Token: dto.Token,
         TotalBalance: total,
-        PlatformTransactionId: result.platformTransactionId,
+        PlatformTransactionId: Number(result.platformTransactionId),
       });
       await this.auditSafe('WithdrawAndDeposit', dto.PlayerId, dto, res);
       return res;
