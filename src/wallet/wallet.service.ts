@@ -13,6 +13,8 @@ import { DepositDto } from './dto/deposit.dto';
 import { WithdrawAndDepositDto } from './dto/withdraw-and-deposit.dto';
 import { RollbackDto } from './dto/rollback.dto';
 import { RgsError, rgsFail, rgsOk } from './rgs-response';
+import { RgsCurrencyService } from './rgs-currency';
+import { toDecimal } from '../common/utils/money.util';
 
 @Injectable()
 export class WalletService {
@@ -22,6 +24,7 @@ export class WalletService {
     private readonly sessions: SessionsService,
     private readonly balances: WalletBalanceService,
     private readonly audit: AuditService,
+    private readonly rgsFx: RgsCurrencyService,
   ) {}
 
   private operatorOk(operatorId: number): boolean {
@@ -113,9 +116,10 @@ export class WalletService {
         NickName: player.nickname,
         UserName: player.username,
         Token: sessionToken!,
-        TotalBalance: Number(snap.totalBalance),
+        TotalBalance: await this.rgsFx.toRgsAmount(snap.totalBalance),
         Gender: player.gender ?? false,
-        Currency: player.currency,
+        // Provider: game UI shows this currency (MMK when RGS_DISPLAY_CURRENCY=MMK)
+        Currency: this.rgsFx.displayCurrency(),
         Country: player.country ?? '',
         PlayerId: player.id,
         UserIP: '',
@@ -179,10 +183,10 @@ export class WalletService {
       const snap = await this.balances.getSnapshot(dto.PlayerId);
       const res = rgsOk({
         PlayerId: dto.PlayerId,
-        TotalBalance: Number(snap.totalBalance),
-        BonusWin: Number(snap.bonusWin),
-        BonusMoney: Number(snap.bonusMoney),
-        FrozenMoney: Number(snap.frozenMoney),
+        TotalBalance: await this.rgsFx.toRgsAmount(snap.totalBalance),
+        BonusWin: await this.rgsFx.toRgsAmount(snap.bonusWin),
+        BonusMoney: await this.rgsFx.toRgsAmount(snap.bonusMoney),
+        FrozenMoney: await this.rgsFx.toRgsAmount(snap.frozenMoney),
         Token: dto.Token,
       });
       await this.auditSafe('GetBalance', dto.PlayerId, dto, res);
@@ -240,7 +244,7 @@ export class WalletService {
       await this.auditSafe('Withdraw', dto.PlayerId, dto, res);
       return res;
     }
-    if (player.currency !== dto.Currency) {
+    if (!this.rgsFx.accepts(dto.Currency, player.currency)) {
       const res = rgsFail(RgsError.WRONG_AMOUNT, 'Wrong Transaction Amount', {
         PlatformTransactionId: 0,
         PlayerId: 0,
@@ -259,6 +263,11 @@ export class WalletService {
       return res;
     }
 
+    const amountUsd = await this.rgsFx.toWalletUsd(
+      dto.WithdrawAmount,
+      dto.Currency,
+      player.currency,
+    );
     const rgsId = BigInt(dto.RGSTransactionId);
     const bonusMode = dto.BonusDefId != null;
 
@@ -274,8 +283,8 @@ export class WalletService {
         }
 
         const snap = bonusMode
-          ? await this.balances.debitBonusWallets(dto.PlayerId, dto.WithdrawAmount, tx)
-          : await this.balances.debitReal(dto.PlayerId, dto.WithdrawAmount, tx);
+          ? await this.balances.debitBonusWallets(dto.PlayerId, amountUsd, tx)
+          : await this.balances.debitReal(dto.PlayerId, amountUsd, tx);
 
         const created = await tx.transaction.create({
           data: {
@@ -283,8 +292,8 @@ export class WalletService {
             rgsTransactionId: rgsId,
             typeId: dto.TypeId,
             direction: 'withdraw',
-            amount: new Prisma.Decimal(dto.WithdrawAmount),
-            currency: dto.Currency,
+            amount: new Prisma.Decimal(amountUsd),
+            currency: player.currency,
             gameId: dto.GameId,
             bonusDefId: dto.BonusDefId ?? null,
             status: 'completed',
@@ -317,7 +326,7 @@ export class WalletService {
       const res = rgsOk({
         PlayerId: dto.PlayerId,
         Token: dto.Token,
-        TotalBalance: total,
+        TotalBalance: await this.rgsFx.toRgsAmount(total),
         PlatformTransactionId: Number(result.platformTransactionId),
       });
       await this.auditSafe('Withdraw', dto.PlayerId, dto, res);
@@ -390,7 +399,7 @@ export class WalletService {
       await this.auditSafe('Deposit', dto.PlayerId, dto, res);
       return res;
     }
-    if (player.currency !== dto.Currency) {
+    if (!this.rgsFx.accepts(dto.Currency, player.currency)) {
       const res = rgsFail(RgsError.WRONG_AMOUNT, 'Wrong Transaction Amount', {
         PlatformTransactionId: 0,
         PlayerId: 0,
@@ -409,6 +418,11 @@ export class WalletService {
       return res;
     }
 
+    const amountUsd = await this.rgsFx.toWalletUsd(
+      dto.DepositAmount,
+      dto.Currency,
+      player.currency,
+    );
     const rgsId = BigInt(dto.RGSTransactionId);
     const bonusMode = dto.BonusDefId != null;
 
@@ -422,8 +436,8 @@ export class WalletService {
         }
 
         const snap = bonusMode
-          ? await this.balances.creditBonusWin(dto.PlayerId, dto.DepositAmount, tx)
-          : await this.balances.creditReal(dto.PlayerId, dto.DepositAmount, tx);
+          ? await this.balances.creditBonusWin(dto.PlayerId, amountUsd, tx)
+          : await this.balances.creditReal(dto.PlayerId, amountUsd, tx);
 
         const created = await tx.transaction.create({
           data: {
@@ -435,8 +449,8 @@ export class WalletService {
                 : null,
             typeId: dto.TypeId,
             direction: 'deposit',
-            amount: new Prisma.Decimal(dto.DepositAmount),
-            currency: dto.Currency,
+            amount: new Prisma.Decimal(amountUsd),
+            currency: player.currency,
             gameId: dto.GameId ?? null,
             bonusDefId: dto.BonusDefId ?? null,
             status: 'completed',
@@ -469,7 +483,7 @@ export class WalletService {
       const res = rgsOk({
         PlayerId: dto.PlayerId,
         Token: dto.Token,
-        TotalBalance: total,
+        TotalBalance: await this.rgsFx.toRgsAmount(total),
         PlatformTransactionId: Number(result.platformTransactionId),
       });
       await this.auditSafe('Deposit', dto.PlayerId, dto, res);
@@ -536,7 +550,7 @@ export class WalletService {
       await this.auditSafe('WithdrawAndDeposit', dto.PlayerId, dto, res);
       return res;
     }
-    if (player.currency !== dto.Currency) {
+    if (!this.rgsFx.accepts(dto.Currency, player.currency)) {
       const res = rgsFail(RgsError.WRONG_AMOUNT, 'Wrong Transaction Amount', {
         PlatformTransactionId: 0,
         PlayerId: 0,
@@ -555,6 +569,16 @@ export class WalletService {
       return res;
     }
 
+    const withdrawUsd = await this.rgsFx.toWalletUsd(
+      dto.WithdrawAmount,
+      dto.Currency,
+      player.currency,
+    );
+    const depositUsd = await this.rgsFx.toWalletUsd(
+      dto.DepositAmount,
+      dto.Currency,
+      player.currency,
+    );
     const rgsId = BigInt(dto.RGSTransactionId);
     const bonusMode = dto.BonusDefId != null;
 
@@ -570,10 +594,10 @@ export class WalletService {
         // Store as withdraw + linked deposit so Rollback can reverse both
         // (same pattern as separate Withdraw then Deposit).
         if (bonusMode) {
-          await this.balances.debitBonusWallets(dto.PlayerId, dto.WithdrawAmount, tx);
+          await this.balances.debitBonusWallets(dto.PlayerId, withdrawUsd, tx);
           const snap = await this.balances.creditBonusWin(
             dto.PlayerId,
-            dto.DepositAmount,
+            depositUsd,
             tx,
           );
           const withdrawTx = await tx.transaction.create({
@@ -582,8 +606,8 @@ export class WalletService {
               rgsTransactionId: rgsId,
               typeId: dto.TypeId,
               direction: 'withdraw',
-              amount: new Prisma.Decimal(dto.WithdrawAmount),
-              currency: dto.Currency,
+              amount: new Prisma.Decimal(withdrawUsd),
+              currency: player.currency,
               gameId: dto.GameId,
               bonusDefId: dto.BonusDefId ?? null,
               status: 'completed',
@@ -593,7 +617,7 @@ export class WalletService {
             where: { id: withdrawTx.id },
             data: { platformTransactionId: BigInt(withdrawTx.id) },
           });
-          if (dto.DepositAmount > 0) {
+          if (toDecimal(depositUsd).gt(0)) {
             const depositTx = await tx.transaction.create({
               data: {
                 playerId: dto.PlayerId,
@@ -601,8 +625,8 @@ export class WalletService {
                 rgsRelatedTransactionId: rgsId,
                 typeId: dto.TypeId,
                 direction: 'deposit',
-                amount: new Prisma.Decimal(dto.DepositAmount),
-                currency: dto.Currency,
+                amount: new Prisma.Decimal(depositUsd),
+                currency: player.currency,
                 gameId: dto.GameId,
                 bonusDefId: dto.BonusDefId ?? null,
                 status: 'completed',
@@ -620,20 +644,16 @@ export class WalletService {
           };
         }
 
-        await this.balances.debitReal(dto.PlayerId, dto.WithdrawAmount, tx);
-        const snap = await this.balances.creditReal(
-          dto.PlayerId,
-          dto.DepositAmount,
-          tx,
-        );
+        await this.balances.debitReal(dto.PlayerId, withdrawUsd, tx);
+        const snap = await this.balances.creditReal(dto.PlayerId, depositUsd, tx);
         const withdrawTx = await tx.transaction.create({
           data: {
             playerId: dto.PlayerId,
             rgsTransactionId: rgsId,
             typeId: dto.TypeId,
             direction: 'withdraw',
-            amount: new Prisma.Decimal(dto.WithdrawAmount),
-            currency: dto.Currency,
+            amount: new Prisma.Decimal(withdrawUsd),
+            currency: player.currency,
             gameId: dto.GameId,
             bonusDefId: null,
             status: 'completed',
@@ -643,7 +663,7 @@ export class WalletService {
           where: { id: withdrawTx.id },
           data: { platformTransactionId: BigInt(withdrawTx.id) },
         });
-        if (dto.DepositAmount > 0) {
+        if (toDecimal(depositUsd).gt(0)) {
           const depositTx = await tx.transaction.create({
             data: {
               playerId: dto.PlayerId,
@@ -651,8 +671,8 @@ export class WalletService {
               rgsRelatedTransactionId: rgsId,
               typeId: dto.TypeId,
               direction: 'deposit',
-              amount: new Prisma.Decimal(dto.DepositAmount),
-              currency: dto.Currency,
+              amount: new Prisma.Decimal(depositUsd),
+              currency: player.currency,
               gameId: dto.GameId,
               bonusDefId: null,
               status: 'completed',
@@ -684,7 +704,7 @@ export class WalletService {
       const res = rgsOk({
         PlayerId: dto.PlayerId,
         Token: dto.Token,
-        TotalBalance: total,
+        TotalBalance: await this.rgsFx.toRgsAmount(total),
         PlatformTransactionId: Number(result.platformTransactionId),
       });
       await this.auditSafe('WithdrawAndDeposit', dto.PlayerId, dto, res);
@@ -826,7 +846,7 @@ export class WalletService {
 
       const total = this.balances.resolveTotal(result.snap, result.bonusMode);
       const res = rgsOk({
-        TotalBalance: total,
+        TotalBalance: await this.rgsFx.toRgsAmount(total),
         Token: dto.Token,
       });
       await this.auditSafe('Rollback', dto.PlayerId, dto, res);

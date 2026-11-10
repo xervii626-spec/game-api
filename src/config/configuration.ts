@@ -27,6 +27,11 @@ export default () => ({
   adminDisplayName: process.env.ADMIN_DISPLAY_NAME ?? 'Super Admin',
   /** MMK per 1 USD — used to seed platform_settings if missing */
   mmkPerUsd: process.env.MMK_PER_USD ?? '4500',
+  /**
+   * Currency sent to BetConstruct game client (Authenticate.Currency).
+   * MMK = show MMK in-game; wallet DB stays USD and we FX at the RGS boundary.
+   */
+  rgsDisplayCurrency: (process.env.RGS_DISPLAY_CURRENCY ?? 'MMK').toUpperCase(),
 });
 
 
