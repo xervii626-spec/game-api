@@ -5,9 +5,11 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AdminAuthController } from './admin-auth.controller';
 import { AdminPlayersController } from './admin-players.controller';
 import { AdminTransactionsController } from './admin-transactions.controller';
+import { AdminDashboardController } from './admin-dashboard.controller';
 import { AdminAuthService } from './admin-auth.service';
 import { AdminPlayersService } from './admin-players.service';
 import { AdminTransactionsService } from './admin-transactions.service';
+import { AdminDashboardService } from './admin-dashboard.service';
 import { AdminJwtStrategy } from './admin-jwt.strategy';
 import { AdminRolesGuard } from './admin-roles.guard';
 import { WalletModule } from '../wallet/wallet.module';
@@ -35,11 +37,13 @@ import { SettingsModule } from '../settings/settings.module';
     AdminAuthController,
     AdminPlayersController,
     AdminTransactionsController,
+    AdminDashboardController,
   ],
   providers: [
     AdminAuthService,
     AdminPlayersService,
     AdminTransactionsService,
+    AdminDashboardService,
     AdminJwtStrategy,
     AdminRolesGuard,
   ],
