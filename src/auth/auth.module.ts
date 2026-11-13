@@ -19,7 +19,7 @@ import { WalletModule } from '../wallet/wallet.module';
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('jwtSecret') || 'dev_jwt_secret_change_me',
         signOptions: {
-          expiresIn: `${config.get<number>('jwtExpiresHours') ?? 168}h`,
+          expiresIn: `${config.get<number>('jwtAccessMinutes') ?? 15}m`,
         },
       }),
     }),

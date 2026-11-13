@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -17,6 +18,8 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentAdmin } from '../common/decorators/current-admin.decorator';
 import { AdminJwtPayload } from './admin-jwt.strategy';
 import { AdjustBalanceDto } from './dto/adjust-balance.dto';
+import { AdminCreatePlayerDto } from './dto/admin-create-player.dto';
+import { AdminUpdatePlayerDto } from './dto/admin-update-player.dto';
 
 @ApiTags('admin-players')
 @ApiBearerAuth()
@@ -40,9 +43,37 @@ export class AdminPlayersController {
     });
   }
 
+  @Roles('admin')
+  @Post()
+  create(
+    @CurrentAdmin() admin: AdminJwtPayload,
+    @Body() dto: AdminCreatePlayerDto,
+  ) {
+    return this.players.create(admin.sub, dto);
+  }
+
   @Get(':id')
   detail(@Param('id', ParseIntPipe) id: number) {
     return this.players.detail(id);
+  }
+
+  @Roles('admin')
+  @Patch(':id')
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentAdmin() admin: AdminJwtPayload,
+    @Body() dto: AdminUpdatePlayerDto,
+  ) {
+    return this.players.update(id, admin.sub, dto);
+  }
+
+  @Roles('admin')
+  @Delete(':id')
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentAdmin() admin: AdminJwtPayload,
+  ) {
+    return this.players.remove(id, admin.sub);
   }
 
   @Roles('admin')

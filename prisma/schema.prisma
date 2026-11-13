@@ -34,17 +34,21 @@ model Player {
 
 /// Frontend site login sessions (≠ RGS game Session)
 model AuthSession {
-  id        Int      @id @default(autoincrement())
-  playerId  Int      @map("player_id")
-  jti       String   @unique @db.VarChar(64)
-  isActive  Boolean  @default(true) @map("is_active")
-  expiresAt DateTime @map("expires_at")
-  createdAt DateTime @default(now()) @map("created_at")
+  id               Int       @id @default(autoincrement())
+  playerId         Int       @map("player_id")
+  jti              String    @unique @db.VarChar(64)
+  isActive         Boolean   @default(true) @map("is_active")
+  /// Access JWT / session outer bound (aligned with refresh expiry)
+  expiresAt        DateTime  @map("expires_at")
+  refreshTokenHash String?   @map("refresh_token_hash") @db.VarChar(128)
+  refreshExpiresAt DateTime? @map("refresh_expires_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
 
   player Player @relation(fields: [playerId], references: [id])
 
   @@index([playerId, isActive])
   @@index([expiresAt])
+  @@index([refreshTokenHash])
   @@map("auth_sessions")
 }
 
@@ -144,17 +148,20 @@ model AdminUser {
 }
 
 model AdminAuthSession {
-  id        Int      @id @default(autoincrement())
-  adminId   Int      @map("admin_id")
-  jti       String   @unique @db.VarChar(64)
-  isActive  Boolean  @default(true) @map("is_active")
-  expiresAt DateTime @map("expires_at")
-  createdAt DateTime @default(now()) @map("created_at")
+  id               Int       @id @default(autoincrement())
+  adminId          Int       @map("admin_id")
+  jti              String    @unique @db.VarChar(64)
+  isActive         Boolean   @default(true) @map("is_active")
+  expiresAt        DateTime  @map("expires_at")
+  refreshTokenHash String?   @map("refresh_token_hash") @db.VarChar(128)
+  refreshExpiresAt DateTime? @map("refresh_expires_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
 
   admin AdminUser @relation(fields: [adminId], references: [id])
 
   @@index([adminId, isActive])
   @@index([expiresAt])
+  @@index([refreshTokenHash])
   @@map("admin_auth_sessions")
 }
 

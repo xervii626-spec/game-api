@@ -4,8 +4,10 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { RgsExceptionFilter } from './common/filters/rgs-exception.filter';
+import { assertProductionEnvSafe } from './config/validate-prod-env';
 
 async function bootstrap() {
+  assertProductionEnvSafe();
   const app = await NestFactory.create(AppModule);
 
   // Render / proxies: real client IP in X-Forwarded-For

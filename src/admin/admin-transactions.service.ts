@@ -60,11 +60,12 @@ export class AdminTransactionsService {
             : t.direction === 'deposit'
               ? 'Win'
               : t.direction;
+        // Lose = Bet row only (no separate Lose line). Win deposit → status "Win".
         const statusLabel =
           t.status === 'rolled_back'
             ? 'Rolled back'
             : t.direction === 'deposit'
-              ? 'Paid'
+              ? 'Win'
               : 'Settled';
 
         return {

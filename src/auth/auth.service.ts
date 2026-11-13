@@ -13,6 +13,10 @@ import { WalletBalanceService } from '../wallet/wallet-balance.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
+import {
+  createOpaqueToken,
+  hashToken,
+} from '../common/utils/token-hash.util';
 
 @Injectable()
 export class AuthService {
@@ -35,13 +39,14 @@ export class AuthService {
       password: dto.password,
       currency: dto.currency.toUpperCase(),
       country: dto.country?.toUpperCase(),
-      // public register: no free balance
     });
 
-    const auth = await this.issueToken(player.id, player.username);
+    const auth = await this.issueTokenPair(player.id, player.username);
     return {
       accessToken: auth.accessToken,
+      refreshToken: auth.refreshToken,
       expiresAt: auth.expiresAt,
+      refreshExpiresAt: auth.refreshExpiresAt,
       player: this.sanitizePlayer(player),
     };
   }
@@ -60,12 +65,48 @@ export class AuthService {
       throw new UnauthorizedException('Invalid username or password');
     }
 
-    const auth = await this.issueToken(player.id, player.username);
+    const auth = await this.issueTokenPair(player.id, player.username);
     return {
       accessToken: auth.accessToken,
+      refreshToken: auth.refreshToken,
       expiresAt: auth.expiresAt,
+      refreshExpiresAt: auth.refreshExpiresAt,
       player: this.sanitizePlayer(player),
     };
+  }
+
+  async refresh(refreshToken: string) {
+    const hash = hashToken(refreshToken);
+    const session = await this.prisma.authSession.findFirst({
+      where: { refreshTokenHash: hash, isActive: true },
+      include: { player: true },
+    });
+
+    if (!session?.refreshExpiresAt) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+    if (session.refreshExpiresAt.getTime() < Date.now()) {
+      await this.prisma.authSession.update({
+        where: { id: session.id },
+        data: { isActive: false, refreshTokenHash: null },
+      });
+      throw new UnauthorizedException('Refresh token expired');
+    }
+    if (session.player.isBlocked) {
+      await this.prisma.authSession.update({
+        where: { id: session.id },
+        data: { isActive: false, refreshTokenHash: null },
+      });
+      throw new UnauthorizedException('Player is blocked');
+    }
+
+    // Rotate: invalidate current refresh immediately
+    await this.prisma.authSession.update({
+      where: { id: session.id },
+      data: { isActive: false, refreshTokenHash: null },
+    });
+
+    return this.issueTokenPair(session.playerId, session.player.username);
   }
 
   async me(user: JwtPayload) {
@@ -80,33 +121,56 @@ export class AuthService {
   async logout(user: JwtPayload) {
     await this.prisma.authSession.updateMany({
       where: { jti: user.jti, isActive: true },
-      data: { isActive: false },
+      data: { isActive: false, refreshTokenHash: null },
     });
     return { success: true };
   }
 
-  private async issueToken(playerId: number, username: string) {
-    const expiresHours = Number(this.config.get('jwtExpiresHours') ?? 168); // 7 days
-    if (expiresHours <= 0) {
-      throw new BadRequestException('Invalid JWT expiry config');
-    }
+  private accessMinutes() {
+    const m = Number(this.config.get('jwtAccessMinutes') ?? 15);
+    if (m <= 0) throw new BadRequestException('Invalid JWT access expiry');
+    return m;
+  }
 
+  private refreshDays() {
+    const d = Number(this.config.get('jwtRefreshDays') ?? 7);
+    if (d <= 0) throw new BadRequestException('Invalid JWT refresh expiry');
+    return d;
+  }
+
+  private async issueTokenPair(playerId: number, username: string) {
+    const accessMin = this.accessMinutes();
+    const refreshDay = this.refreshDays();
     const jti = randomBytes(24).toString('hex');
-    const expiresAt = new Date(Date.now() + expiresHours * 60 * 60 * 1000);
+    const refreshToken = createOpaqueToken();
+    const refreshTokenHash = hashToken(refreshToken);
+    const refreshExpiresAt = new Date(
+      Date.now() + refreshDay * 24 * 60 * 60 * 1000,
+    );
+    const accessExpiresAt = new Date(Date.now() + accessMin * 60 * 1000);
 
     await this.prisma.authSession.create({
       data: {
         playerId,
         jti,
         isActive: true,
-        expiresAt,
+        expiresAt: refreshExpiresAt,
+        refreshTokenHash,
+        refreshExpiresAt,
       },
     });
 
     const payload: JwtPayload = { sub: playerId, username, jti };
-    const accessToken = await this.jwt.signAsync(payload);
+    const accessToken = await this.jwt.signAsync(payload, {
+      expiresIn: `${accessMin}m`,
+    });
 
-    return { accessToken, expiresAt };
+    return {
+      accessToken,
+      refreshToken,
+      expiresAt: accessExpiresAt,
+      refreshExpiresAt,
+    };
   }
 
   private sanitizePlayer(player: {

@@ -15,6 +15,7 @@ import { RollbackDto } from './dto/rollback.dto';
 import { RgsError, rgsFail, rgsOk } from './rgs-response';
 import { RgsCurrencyService } from './rgs-currency';
 import { toDecimal } from '../common/utils/money.util';
+import { AdminEventsService } from '../admin-events/admin-events.service';
 
 @Injectable()
 export class WalletService {
@@ -25,6 +26,7 @@ export class WalletService {
     private readonly balances: WalletBalanceService,
     private readonly audit: AuditService,
     private readonly rgsFx: RgsCurrencyService,
+    private readonly adminEvents: AdminEventsService,
   ) {}
 
   private operatorOk(operatorId: number): boolean {
@@ -330,6 +332,7 @@ export class WalletService {
         PlatformTransactionId: Number(result.platformTransactionId),
       });
       await this.auditSafe('Withdraw', dto.PlayerId, dto, res);
+      this.adminEvents.emitActivity('bet');
       return res;
     } catch (e) {
       if (this.isNotEnough(e)) {
@@ -487,6 +490,7 @@ export class WalletService {
         PlatformTransactionId: Number(result.platformTransactionId),
       });
       await this.auditSafe('Deposit', dto.PlayerId, dto, res);
+      this.adminEvents.emitActivity('win');
       return res;
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
@@ -708,6 +712,7 @@ export class WalletService {
         PlatformTransactionId: Number(result.platformTransactionId),
       });
       await this.auditSafe('WithdrawAndDeposit', dto.PlayerId, dto, res);
+      this.adminEvents.emitActivity('bet_win');
       return res;
     } catch (e) {
       if (this.isNotEnough(e)) {

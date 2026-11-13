@@ -10,6 +10,7 @@ import { WalletBalanceService } from '../wallet/wallet-balance.service';
 import { AuditService } from '../audit/audit.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { toDecimal } from '../common/utils/money.util';
+import { AdminEventsService } from '../admin-events/admin-events.service';
 
 @Injectable()
 export class PaymentsService {
@@ -18,6 +19,7 @@ export class PaymentsService {
     private readonly settings: SettingsService,
     private readonly balances: WalletBalanceService,
     private readonly audit: AuditService,
+    private readonly adminEvents: AdminEventsService,
   ) {}
 
   async getRate() {
@@ -103,6 +105,7 @@ export class PaymentsService {
       response: { id: row.id, amountUsd: usd, rateUsed },
     });
 
+    this.adminEvents.emitPayment(`${type}.created`);
     return this.serialize(row);
   }
 
@@ -174,11 +177,12 @@ export class PaymentsService {
       where: { id },
       data: { status: 'cancelled' },
     });
+    this.adminEvents.emitPayment('cancelled');
     return this.serialize(updated);
   }
 
   async approve(id: number, adminId: number, adminNote?: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<{ id: number; status: string }[]>`
         SELECT id, status FROM payment_requests WHERE id = ${id} FOR UPDATE
       `;
@@ -255,6 +259,8 @@ export class PaymentsService {
         ledgerId: ledger.id,
       };
     });
+    this.adminEvents.emitPayment('approved');
+    return result;
   }
 
   async reject(id: number, adminId: number, adminNote?: string) {
@@ -285,6 +291,7 @@ export class PaymentsService {
       response: { ok: true },
     });
 
+    this.adminEvents.emitPayment('rejected');
     return this.serialize(updated);
   }
 
@@ -297,6 +304,7 @@ export class PaymentsService {
         request: { mmkPerUsd },
         response: result,
       });
+      this.adminEvents.emitRate();
       return result;
     } catch {
       throw new BadRequestException('mmkPerUsd must be a positive number');

@@ -6,6 +6,8 @@ import { AdminAuthController } from './admin-auth.controller';
 import { AdminPlayersController } from './admin-players.controller';
 import { AdminTransactionsController } from './admin-transactions.controller';
 import { AdminDashboardController } from './admin-dashboard.controller';
+import { AdminEventsController } from '../admin-events/admin-events.controller';
+import { AdminSseTicketGuard } from '../admin-events/admin-sse-ticket.guard';
 import { AdminAuthService } from './admin-auth.service';
 import { AdminPlayersService } from './admin-players.service';
 import { AdminTransactionsService } from './admin-transactions.service';
@@ -28,7 +30,7 @@ import { SettingsModule } from '../settings/settings.module';
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('jwtSecret') || 'dev_jwt_secret_change_me',
         signOptions: {
-          expiresIn: `${config.get<number>('jwtExpiresHours') ?? 168}h`,
+          expiresIn: `${config.get<number>('jwtAccessMinutes') ?? 15}m`,
         },
       }),
     }),
@@ -38,6 +40,7 @@ import { SettingsModule } from '../settings/settings.module';
     AdminPlayersController,
     AdminTransactionsController,
     AdminDashboardController,
+    AdminEventsController,
   ],
   providers: [
     AdminAuthService,
@@ -46,6 +49,7 @@ import { SettingsModule } from '../settings/settings.module';
     AdminDashboardService,
     AdminJwtStrategy,
     AdminRolesGuard,
+    AdminSseTicketGuard,
   ],
 })
 export class AdminModule {}

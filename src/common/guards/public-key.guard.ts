@@ -22,9 +22,13 @@ export class PublicKeyGuard implements CanActivate {
     }
 
     const sharedKey = this.config.get<string>('sharedKey') ?? '';
-    // Local/dev placeholder — skip strict verify until real SharedKey is set
-    if (!sharedKey || sharedKey === 'change_me_shared_key') {
+    const isProd = this.config.get<boolean>('isProd') === true;
+    // Dev-only: skip until SharedKey is set. Production must always verify.
+    if (!isProd && (!sharedKey || sharedKey === 'change_me_shared_key')) {
       return true;
+    }
+    if (!sharedKey || sharedKey === 'change_me_shared_key') {
+      throw new UnauthorizedException('SHARED_KEY is not configured');
     }
 
     if (!verifyPublicKeyFromBody(body, sharedKey, publicKey)) {

@@ -1,5 +1,6 @@
 import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { IpWhitelistGuard } from '../common/guards/ip-whitelist.guard';
 import { PublicKeyGuard } from '../common/guards/public-key.guard';
 import { WalletService } from './wallet.service';
@@ -22,6 +23,7 @@ import { RollbackDto } from './dto/rollback.dto';
  */
 @ApiTags('wallet')
 @Controller()
+@SkipThrottle()
 @UseGuards(IpWhitelistGuard, PublicKeyGuard)
 export class WalletController {
   constructor(private readonly walletService: WalletService) {}

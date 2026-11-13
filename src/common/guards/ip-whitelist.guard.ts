@@ -21,6 +21,10 @@ export class IpWhitelistGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const whitelist = this.config.get<string[]>('rgsIpWhitelist') ?? [];
     if (whitelist.length === 0) {
+      if (this.config.get<boolean>('isProd') === true) {
+        throw new ForbiddenException('RGS_IP_WHITELIST is not configured');
+      }
+      // Local/dev: empty whitelist = allow all
       return true;
     }
 

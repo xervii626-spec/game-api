@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -13,6 +14,7 @@ import { AuditModule } from './audit/audit.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { PlayerWalletModule } from './player-wallet/player-wallet.module';
 import { AdminModule } from './admin/admin.module';
+import { AdminEventsModule } from './admin-events/admin-events.module';
 import { SettingsModule } from './settings/settings.module';
 import { PaymentsModule } from './payments/payments.module';
 import { HealthController } from './health.controller';
@@ -26,11 +28,18 @@ import { HealthController } from './health.controller';
     }),
     ThrottlerModule.forRoot([
       {
+        name: 'default',
         ttl: 60_000,
         limit: 120,
       },
+      {
+        name: 'auth',
+        ttl: 60_000,
+        limit: 20,
+      },
     ]),
     PrismaModule,
+    AdminEventsModule,
     AuthModule,
     PlayersModule,
     SessionsModule,
@@ -43,6 +52,12 @@ import { HealthController } from './health.controller';
     SettingsModule,
     PaymentsModule,
     AdminModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}
