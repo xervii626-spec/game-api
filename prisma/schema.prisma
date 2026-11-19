@@ -28,6 +28,7 @@ model Player {
   transactions     Transaction[]
   ledger           WalletLedger[]
   paymentRequests  PaymentRequest[]
+  bonusClaims      BonusClaim[]
 
   @@index([isBlocked])
   @@index([createdAt])
@@ -183,6 +184,25 @@ model PlatformSetting {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("platform_settings")
+}
+
+/// One claim per player per calendar day (Asia/Yangon) per kind
+model BonusClaim {
+  id        Int      @id @default(autoincrement())
+  playerId  Int      @map("player_id")
+  /// daily_login | quest_* (future)
+  kind      String   @db.VarChar(40)
+  /// YYYY-MM-DD in Asia/Yangon
+  claimDate String   @map("claim_date") @db.Char(10)
+  amountUsd Decimal  @map("amount_usd") @db.Decimal(18, 4)
+  ledgerId  Int?     @map("ledger_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@unique([playerId, kind, claimDate])
+  @@index([playerId, kind, createdAt(sort: Desc)])
+  @@map("bonus_claims")
 }
 
 /// Manual deposit/withdraw — player requests MMK, wallet credits/debits USD

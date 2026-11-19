@@ -9,6 +9,8 @@ import { formatMoney, toDecimal } from '../common/utils/money.util';
 
 export const SETTING_MMK_PER_USD = 'mmk_per_usd';
 export const SETTING_TELEGRAM_REGISTER_URL = 'telegram_register_url';
+export const SETTING_DAILY_LOGIN_BONUS_USD = 'daily_login_bonus_usd';
+const DEFAULT_DAILY_LOGIN_BONUS_USD = '1.0000';
 
 @Injectable()
 export class SettingsService implements OnModuleInit {
@@ -37,6 +39,18 @@ export class SettingsService implements OnModuleInit {
       ).trim();
       await this.prisma.platformSetting.create({
         data: { key: SETTING_TELEGRAM_REGISTER_URL, value: fromEnv },
+      });
+    }
+
+    const daily = await this.prisma.platformSetting.findUnique({
+      where: { key: SETTING_DAILY_LOGIN_BONUS_USD },
+    });
+    if (!daily) {
+      await this.prisma.platformSetting.create({
+        data: {
+          key: SETTING_DAILY_LOGIN_BONUS_USD,
+          value: DEFAULT_DAILY_LOGIN_BONUS_USD,
+        },
       });
     }
   }
@@ -102,6 +116,30 @@ export class SettingsService implements OnModuleInit {
   async getPublicSettings() {
     return {
       telegramRegisterUrl: await this.getTelegramRegisterUrl(),
+    };
+  }
+
+  async getDailyLoginBonusUsd(): Promise<string> {
+    const row = await this.prisma.platformSetting.findUnique({
+      where: { key: SETTING_DAILY_LOGIN_BONUS_USD },
+    });
+    const raw = row?.value ?? DEFAULT_DAILY_LOGIN_BONUS_USD;
+    return formatMoney(toDecimal(raw));
+  }
+
+  async setDailyLoginBonusUsd(amount: string) {
+    const value = formatMoney(toDecimal(amount));
+    if (toDecimal(value).lte(0)) {
+      throw new BadRequestException('Daily login bonus must be greater than 0');
+    }
+    await this.prisma.platformSetting.upsert({
+      where: { key: SETTING_DAILY_LOGIN_BONUS_USD },
+      create: { key: SETTING_DAILY_LOGIN_BONUS_USD, value },
+      update: { value },
+    });
+    return {
+      key: SETTING_DAILY_LOGIN_BONUS_USD,
+      dailyLoginBonusUsd: value,
     };
   }
 }

@@ -237,4 +237,32 @@ export class WalletBalanceService {
     if (db) return run(db);
     return this.prisma.$transaction(run);
   }
+
+  /** Playable bonus (not withdrawable) — daily login / quests */
+  async creditBonusMoney(
+    playerId: number,
+    amount: string | number,
+    db?: Prisma.TransactionClient,
+  ): Promise<BalanceSnapshot> {
+    const value = toDecimal(amount);
+    if (value.lt(0)) {
+      throw new BadRequestException('Credit amount cannot be negative');
+    }
+    if (value.eq(0)) {
+      return this.getSnapshot(playerId, db ?? this.prisma);
+    }
+
+    const run = async (tx: Prisma.TransactionClient) => {
+      const row = await this.lockWallet(tx, playerId);
+      const next = formatMoney(add(row.bonus_money.toString(), value));
+      const updated = await tx.wallet.update({
+        where: { playerId },
+        data: { bonusMoney: new Prisma.Decimal(next) },
+      });
+      return this.toSnapshot(updated);
+    };
+
+    if (db) return run(db);
+    return this.prisma.$transaction(run);
+  }
 }
