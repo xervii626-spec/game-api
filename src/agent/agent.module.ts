@@ -10,9 +10,16 @@ import { AdminModule } from '../admin/admin.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { AuditModule } from '../audit/audit.module';
 import { SettingsModule } from '../settings/settings.module';
+import { BigWinModule } from '../big-win/big-win.module';
 
 @Module({
-  imports: [AdminModule, WalletModule, AuditModule, SettingsModule],
+  imports: [
+    AdminModule,
+    WalletModule,
+    AuditModule,
+    SettingsModule,
+    BigWinModule,
+  ],
   controllers: [
     AgentAuthController,
     AgentController,

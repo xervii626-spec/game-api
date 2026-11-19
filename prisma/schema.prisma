@@ -30,6 +30,7 @@ model Player {
   paymentRequests  PaymentRequest[]
   bonusClaims      BonusClaim[]
   questProgress    QuestProgress[]
+  bigWins          BigWinEvent[]
 
   @@index([isBlocked])
   @@index([createdAt])
@@ -225,6 +226,26 @@ model QuestProgress {
   @@index([playerId, status])
   @@index([questId])
   @@map("quest_progress")
+}
+
+/// Public big-win ticker events (win ≥ admin MMK threshold)
+model BigWinEvent {
+  id         Int      @id @default(autoincrement())
+  playerId   Int      @map("player_id")
+  agentId    Int?     @map("agent_id")
+  gameId     Int?     @map("game_id")
+  amountUsd  Decimal  @map("amount_usd") @db.Decimal(18, 4)
+  amountMmk  Decimal  @map("amount_mmk") @db.Decimal(18, 2)
+  rateUsed   Decimal  @map("rate_used") @db.Decimal(18, 4)
+  username   String   @db.VarChar(50)
+  nickname   String   @db.VarChar(50)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@index([createdAt(sort: Desc)])
+  @@index([agentId, createdAt(sort: Desc)])
+  @@map("big_win_events")
 }
 
 /// One claim per player per calendar day (Asia/Yangon) per kind

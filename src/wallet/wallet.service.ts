@@ -22,6 +22,7 @@ import { RgsCurrencyService } from './rgs-currency';
 import { toDecimal } from '../common/utils/money.util';
 import { AdminEventsService } from '../admin-events/admin-events.service';
 import { QuestProgressService } from '../quest/quest-progress.service';
+import { BigWinService } from '../big-win/big-win.service';
 
 @Injectable()
 export class WalletService {
@@ -35,6 +36,7 @@ export class WalletService {
     private readonly adminEvents: AdminEventsService,
     @Inject(forwardRef(() => QuestProgressService))
     private readonly questProgress: QuestProgressService,
+    private readonly bigWins: BigWinService,
   ) {}
 
   private operatorOk(operatorId: number): boolean {
@@ -500,6 +502,13 @@ export class WalletService {
       });
       await this.auditSafe('Deposit', dto.PlayerId, dto, res);
       this.adminEvents.emitActivity('win');
+      if (!bonusMode) {
+        void this.bigWins.maybeRecordWin({
+          playerId: dto.PlayerId,
+          amountUsd,
+          gameId: dto.GameId ?? null,
+        });
+      }
       return res;
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
@@ -724,6 +733,13 @@ export class WalletService {
       this.adminEvents.emitActivity('bet_win');
       if (toDecimal(withdrawUsd).gt(0)) {
         void this.questProgress.onBet(dto.PlayerId, withdrawUsd);
+      }
+      if (!bonusMode && toDecimal(depositUsd).gt(0)) {
+        void this.bigWins.maybeRecordWin({
+          playerId: dto.PlayerId,
+          amountUsd: depositUsd,
+          gameId: dto.GameId ?? null,
+        });
       }
       return res;
     } catch (e) {

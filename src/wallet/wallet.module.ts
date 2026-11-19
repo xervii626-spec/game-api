@@ -7,6 +7,7 @@ import { AuditModule } from '../audit/audit.module';
 import { SessionsModule } from '../sessions/sessions.module';
 import { SettingsModule } from '../settings/settings.module';
 import { QuestModule } from '../quest/quest.module';
+import { BigWinModule } from '../big-win/big-win.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { QuestModule } from '../quest/quest.module';
     SessionsModule,
     SettingsModule,
     forwardRef(() => QuestModule),
+    BigWinModule,
   ],
   controllers: [WalletController],
   providers: [WalletService, WalletBalanceService, RgsCurrencyService],

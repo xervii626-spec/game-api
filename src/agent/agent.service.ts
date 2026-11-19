@@ -16,6 +16,7 @@ import { CreateSubAgentDto } from './dto/create-sub-agent.dto';
 import { CreateAgentPlayerDto } from './dto/create-agent-player.dto';
 import { CreateMasterAgentDto } from './dto/create-master-agent.dto';
 import { AdminJwtPayload } from '../admin/admin-jwt.strategy';
+import { BigWinService } from '../big-win/big-win.service';
 import { formatMoney, toDecimal } from '../common/utils/money.util';
 
 @Injectable()
@@ -26,6 +27,7 @@ export class AgentService {
     private readonly balances: WalletBalanceService,
     private readonly audit: AuditService,
     private readonly settings: SettingsService,
+    private readonly bigWins: BigWinService,
   ) {}
 
   // ─── Platform admin: master agents ─────────────────────────
@@ -398,6 +400,14 @@ export class AgentService {
         };
       }),
     };
+  }
+
+  async listBigWins(agent: AdminJwtPayload, limit = 30) {
+    const agentIds =
+      agent.role === 'master_agent'
+        ? await this.scope.agentIdsInTree(agent.sub)
+        : [agent.sub];
+    return this.bigWins.listForAgentIds(agentIds, limit);
   }
 
   private serializePlayer(p: {

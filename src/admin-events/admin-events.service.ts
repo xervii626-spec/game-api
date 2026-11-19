@@ -4,7 +4,7 @@ import { filter, map } from 'rxjs/operators';
 import { createOpaqueToken, hashToken } from '../common/utils/token-hash.util';
 
 export type AdminRealtimeEvent = {
-  type: 'activity' | 'payment' | 'rate';
+  type: 'activity' | 'payment' | 'rate' | 'big_win';
   action?: string;
   at: string;
 };

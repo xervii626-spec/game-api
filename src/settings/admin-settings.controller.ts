@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { SettingsService } from './settings.service';
 import { SetTelegramRegisterDto } from './dto/set-telegram-register.dto';
 import { SetDailyLoginBonusDto } from './dto/set-daily-login-bonus.dto';
+import { SetBigWinThresholdDto } from './dto/set-big-win-threshold.dto';
 import { AdminJwtAuthGuard } from '../admin/admin-jwt-auth.guard';
 import { AdminRolesGuard } from '../admin/admin-roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -34,5 +35,16 @@ export class AdminSettingsController {
   @Put('daily-login-bonus')
   setDailyLogin(@Body() dto: SetDailyLoginBonusDto) {
     return this.settings.setDailyLoginBonusUsd(dto.dailyLoginBonusUsd);
+  }
+
+  @Get('big-win-threshold')
+  async getBigWin() {
+    const bigWinThresholdMmk = await this.settings.getBigWinThresholdMmk();
+    return { bigWinThresholdMmk };
+  }
+
+  @Put('big-win-threshold')
+  setBigWin(@Body() dto: SetBigWinThresholdDto) {
+    return this.settings.setBigWinThresholdMmk(dto.bigWinThresholdMmk);
   }
 }

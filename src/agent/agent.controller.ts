@@ -44,6 +44,14 @@ export class AgentController {
     );
   }
 
+  @Get('big-wins')
+  bigWins(
+    @CurrentAdmin() agent: AdminJwtPayload,
+    @Query('limit') limit?: string,
+  ) {
+    return this.agents.listBigWins(agent, limit ? Number(limit) : 30);
+  }
+
   @Roles('master_agent')
   @Get('sub-agents')
   listSubs(@CurrentAdmin() agent: AdminJwtPayload) {
