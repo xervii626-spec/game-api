@@ -1,8 +1,14 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
-import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -21,10 +27,13 @@ export class AuthController {
     return this.authService.health();
   }
 
+  /** Public self-register disabled — use Telegram + agent/admin create. */
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('register')
-  register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  register() {
+    throw new ForbiddenException(
+      'Self-register is closed. Open Register on the login screen to join via Telegram.',
+    );
   }
 
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
