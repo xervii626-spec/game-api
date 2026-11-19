@@ -15,6 +15,7 @@ import { SessionsModule } from './sessions/sessions.module';
 import { PlayerWalletModule } from './player-wallet/player-wallet.module';
 import { AdminModule } from './admin/admin.module';
 import { AdminEventsModule } from './admin-events/admin-events.module';
+import { AgentModule } from './agent/agent.module';
 import { SettingsModule } from './settings/settings.module';
 import { PaymentsModule } from './payments/payments.module';
 import { HealthController } from './health.controller';
@@ -52,6 +53,7 @@ import { HealthController } from './health.controller';
     SettingsModule,
     PaymentsModule,
     AdminModule,
+    AgentModule,
   ],
   providers: [
     {

@@ -13,6 +13,7 @@ import { AdminPlayersService } from './admin-players.service';
 import { AdminTransactionsService } from './admin-transactions.service';
 import { AdminDashboardService } from './admin-dashboard.service';
 import { AdminJwtStrategy } from './admin-jwt.strategy';
+import { AdminJwtAuthGuard } from './admin-jwt-auth.guard';
 import { AdminRolesGuard } from './admin-roles.guard';
 import { WalletModule } from '../wallet/wallet.module';
 import { AuditModule } from '../audit/audit.module';
@@ -48,8 +49,17 @@ import { SettingsModule } from '../settings/settings.module';
     AdminTransactionsService,
     AdminDashboardService,
     AdminJwtStrategy,
+    AdminJwtAuthGuard,
     AdminRolesGuard,
     AdminSseTicketGuard,
+  ],
+  exports: [
+    AdminAuthService,
+    AdminJwtStrategy,
+    AdminJwtAuthGuard,
+    AdminRolesGuard,
+    JwtModule,
+    PassportModule,
   ],
 })
 export class AdminModule {}

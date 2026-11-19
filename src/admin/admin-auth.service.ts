@@ -61,6 +61,11 @@ export class AdminAuthService implements OnModuleInit {
     if (!admin || !admin.isActive) {
       throw new UnauthorizedException('Invalid admin credentials');
     }
+    if (admin.role === 'master_agent' || admin.role === 'sub_agent') {
+      throw new UnauthorizedException(
+        'Agent accounts must sign in on the Agent portal',
+      );
+    }
     const ok = await bcrypt.compare(dto.password, admin.passwordHash);
     if (!ok) {
       throw new UnauthorizedException('Invalid admin credentials');
@@ -168,7 +173,8 @@ export class AdminAuthService implements OnModuleInit {
     return d;
   }
 
-  private async issueTokenPair(
+  /** Shared by admin + agent portals (same JWT / session table). */
+  async issueTokenPair(
     adminId: number,
     username: string,
     role: string,

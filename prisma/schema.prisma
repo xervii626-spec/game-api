@@ -16,12 +16,15 @@ model Player {
   country      String?  @db.Char(2)
   gender       Boolean?
   isBlocked    Boolean  @default(false) @map("is_blocked")
+  /// Owning agent (master_agent or sub_agent AdminUser id)
+  agentId      Int?     @map("agent_id")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  wallet       Wallet?
-  sessions     Session[]
-  authSessions AuthSession[]
+  agent            AdminUser? @relation("AgentPlayers", fields: [agentId], references: [id])
+  wallet           Wallet?
+  sessions         Session[]
+  authSessions     AuthSession[]
   transactions     Transaction[]
   ledger           WalletLedger[]
   paymentRequests  PaymentRequest[]
@@ -29,6 +32,7 @@ model Player {
   @@index([isBlocked])
   @@index([createdAt])
   @@index([username])
+  @@index([agentId])
   @@map("players")
 }
 
@@ -134,16 +138,23 @@ model AdminUser {
   username     String   @unique @db.VarChar(50)
   passwordHash String   @map("password_hash")
   displayName  String   @map("display_name") @db.VarChar(100)
-  role         String   @default("admin") @db.VarChar(20) // admin | operator
+  /// admin | master_agent | sub_agent
+  role         String   @default("admin") @db.VarChar(20)
   isActive     Boolean  @default(true) @map("is_active")
+  /// Master agent id when role = sub_agent
+  parentId     Int?     @map("parent_id")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
+  parent          AdminUser?  @relation("AgentTree", fields: [parentId], references: [id])
+  children        AdminUser[] @relation("AgentTree")
+  players         Player[]    @relation("AgentPlayers")
   sessions        AdminAuthSession[]
   ledgers         WalletLedger[]
   paymentReviews  PaymentRequest[]
 
   @@index([role, isActive])
+  @@index([parentId])
   @@map("admin_users")
 }
 
