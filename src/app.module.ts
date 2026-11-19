@@ -10,6 +10,7 @@ import { WalletModule } from './wallet/wallet.module';
 import { GamesModule } from './games/games.module';
 import { LaunchModule } from './launch/launch.module';
 import { BonusModule } from './bonus/bonus.module';
+import { QuestModule } from './quest/quest.module';
 import { AuditModule } from './audit/audit.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { PlayerWalletModule } from './player-wallet/player-wallet.module';
@@ -49,6 +50,7 @@ import { HealthController } from './health.controller';
     GamesModule,
     LaunchModule,
     BonusModule,
+    QuestModule,
     AuditModule,
     SettingsModule,
     PaymentsModule,

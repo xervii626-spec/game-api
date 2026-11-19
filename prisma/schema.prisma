@@ -29,6 +29,7 @@ model Player {
   ledger           WalletLedger[]
   paymentRequests  PaymentRequest[]
   bonusClaims      BonusClaim[]
+  questProgress    QuestProgress[]
 
   @@index([isBlocked])
   @@index([createdAt])
@@ -184,6 +185,46 @@ model PlatformSetting {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("platform_settings")
+}
+
+/// Admin-defined dynamic quest (bet goals → play-only bonus)
+model Quest {
+  id           Int      @id @default(autoincrement())
+  title        String   @db.VarChar(120)
+  description  String?  @db.VarChar(255)
+  /// bet_count | bet_amount_usd
+  goalType     String   @map("goal_type") @db.VarChar(30)
+  targetValue  Decimal  @map("target_value") @db.Decimal(18, 4)
+  rewardUsd    Decimal  @map("reward_usd") @db.Decimal(18, 4)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  progress QuestProgress[]
+
+  @@index([isActive, createdAt(sort: Desc)])
+  @@map("quests")
+}
+
+model QuestProgress {
+  id             Int       @id @default(autoincrement())
+  playerId       Int       @map("player_id")
+  questId        Int       @map("quest_id")
+  progressValue  Decimal   @default(0) @map("progress_value") @db.Decimal(18, 4)
+  /// active | claimable | claimed
+  status         String    @default("active") @db.VarChar(20)
+  claimedAt      DateTime? @map("claimed_at")
+  ledgerId       Int?      @map("ledger_id")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  player Player @relation(fields: [playerId], references: [id])
+  quest  Quest  @relation(fields: [questId], references: [id])
+
+  @@unique([playerId, questId])
+  @@index([playerId, status])
+  @@index([questId])
+  @@map("quest_progress")
 }
 
 /// One claim per player per calendar day (Asia/Yangon) per kind

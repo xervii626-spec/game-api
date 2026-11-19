@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  forwardRef,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
@@ -16,6 +21,7 @@ import { RgsError, rgsFail, rgsOk } from './rgs-response';
 import { RgsCurrencyService } from './rgs-currency';
 import { toDecimal } from '../common/utils/money.util';
 import { AdminEventsService } from '../admin-events/admin-events.service';
+import { QuestProgressService } from '../quest/quest-progress.service';
 
 @Injectable()
 export class WalletService {
@@ -27,6 +33,8 @@ export class WalletService {
     private readonly audit: AuditService,
     private readonly rgsFx: RgsCurrencyService,
     private readonly adminEvents: AdminEventsService,
+    @Inject(forwardRef(() => QuestProgressService))
+    private readonly questProgress: QuestProgressService,
   ) {}
 
   private operatorOk(operatorId: number): boolean {
@@ -333,6 +341,7 @@ export class WalletService {
       });
       await this.auditSafe('Withdraw', dto.PlayerId, dto, res);
       this.adminEvents.emitActivity('bet');
+      void this.questProgress.onBet(dto.PlayerId, amountUsd);
       return res;
     } catch (e) {
       if (this.isNotEnough(e)) {
@@ -713,6 +722,9 @@ export class WalletService {
       });
       await this.auditSafe('WithdrawAndDeposit', dto.PlayerId, dto, res);
       this.adminEvents.emitActivity('bet_win');
+      if (toDecimal(withdrawUsd).gt(0)) {
+        void this.questProgress.onBet(dto.PlayerId, withdrawUsd);
+      }
       return res;
     } catch (e) {
       if (this.isNotEnough(e)) {
