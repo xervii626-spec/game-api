@@ -7,11 +7,13 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { PlayersModule } from '../players/players.module';
 import { WalletModule } from '../wallet/wallet.module';
+import { BonusModule } from '../bonus/bonus.module';
 
 @Module({
   imports: [
     PlayersModule,
     WalletModule,
+    BonusModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

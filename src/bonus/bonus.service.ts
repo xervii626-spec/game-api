@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { WalletBalanceService } from '../wallet/wallet-balance.service';
 import { SettingsService } from '../settings/settings.service';
 import { AuditService } from '../audit/audit.service';
+import { DailyLoginCacheService } from './daily-login-cache.service';
 import { formatMoney, toDecimal } from '../common/utils/money.util';
 
 export const BONUS_KIND_DAILY_LOGIN = 'daily_login';
@@ -19,9 +20,10 @@ export class BonusService {
     private readonly balances: WalletBalanceService,
     private readonly settings: SettingsService,
     private readonly audit: AuditService,
+    private readonly dailyCache: DailyLoginCacheService,
   ) {}
 
-  /** Calendar day key in Asia/Yangon (YYYY-MM-DD). */
+  /** Calendar day key in Asia/Yangon (YYYY-MM-DD) — 24h window resets at Yangon midnight. */
   yangonDateKey(d = new Date()): string {
     return new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Yangon',
@@ -31,10 +33,32 @@ export class BonusService {
     }).format(d);
   }
 
+  /**
+   * O(1) via unique index (player_id, kind, claim_date) + optional Redis/memory cache.
+   * No N+1 — single lookup + cached settings.
+   */
   async dailyLoginStatus(playerId: number) {
     const claimDate = this.yangonDateKey();
     const amountUsd = await this.settings.getDailyLoginBonusUsd();
     const mmkPerUsd = await this.settings.getMmkPerUsd();
+
+    const cached = await this.dailyCache.getClaimed(playerId, claimDate);
+    if (cached === true) {
+      return {
+        kind: BONUS_KIND_DAILY_LOGIN,
+        claimDate,
+        timezone: 'Asia/Yangon',
+        canClaim: false,
+        claimedToday: true,
+        amountUsd,
+        amountMmk: this.settings.usdToMmk(amountUsd, mmkPerUsd),
+        mmkPerUsd,
+        playOnly: true,
+        claimedAt: null as string | null,
+        fromCache: true,
+      };
+    }
+
     const existing = await this.prisma.bonusClaim.findUnique({
       where: {
         playerId_kind_claimDate: {
@@ -43,19 +67,24 @@ export class BonusService {
           claimDate,
         },
       },
+      select: { id: true, createdAt: true },
     });
+
+    const claimed = Boolean(existing);
+    await this.dailyCache.setClaimed(playerId, claimDate, claimed);
 
     return {
       kind: BONUS_KIND_DAILY_LOGIN,
       claimDate,
       timezone: 'Asia/Yangon',
-      canClaim: !existing,
-      claimedToday: Boolean(existing),
+      canClaim: !claimed,
+      claimedToday: claimed,
       amountUsd,
       amountMmk: this.settings.usdToMmk(amountUsd, mmkPerUsd),
       mmkPerUsd,
       playOnly: true,
       claimedAt: existing?.createdAt?.toISOString() ?? null,
+      fromCache: false,
     };
   }
 
@@ -66,6 +95,11 @@ export class BonusService {
       throw new BadRequestException('Daily login bonus is not configured');
     }
 
+    const cached = await this.dailyCache.getClaimed(playerId, claimDate);
+    if (cached === true) {
+      throw new ConflictException('Already claimed today');
+    }
+
     const already = await this.prisma.bonusClaim.findUnique({
       where: {
         playerId_kind_claimDate: {
@@ -74,8 +108,10 @@ export class BonusService {
           claimDate,
         },
       },
+      select: { id: true },
     });
     if (already) {
+      await this.dailyCache.setClaimed(playerId, claimDate, true);
       throw new ConflictException('Already claimed today');
     }
 
@@ -105,8 +141,10 @@ export class BonusService {
             ledgerId: ledger.id,
           },
         });
-        return { snap, claim, ledgerId: ledger.id };
+        return { snap, claim };
       });
+
+      await this.dailyCache.setClaimed(playerId, claimDate, true);
 
       await this.audit.log({
         action: 'DailyLoginClaim',
@@ -133,6 +171,7 @@ export class BonusService {
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === 'P2002'
       ) {
+        await this.dailyCache.setClaimed(playerId, claimDate, true);
         throw new ConflictException('Already claimed today');
       }
       throw err;

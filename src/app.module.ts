@@ -12,6 +12,9 @@ import { LaunchModule } from './launch/launch.module';
 import { BonusModule } from './bonus/bonus.module';
 import { QuestModule } from './quest/quest.module';
 import { BigWinModule } from './big-win/big-win.module';
+import { LeaderboardModule } from './leaderboard/leaderboard.module';
+import { AnnouncementModule } from './announcement/announcement.module';
+import { FaqModule } from './faq/faq.module';
 import { AuditModule } from './audit/audit.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { PlayerWalletModule } from './player-wallet/player-wallet.module';
@@ -53,6 +56,9 @@ import { HealthController } from './health.controller';
     BonusModule,
     QuestModule,
     BigWinModule,
+    LeaderboardModule,
+    AnnouncementModule,
+    FaqModule,
     AuditModule,
     SettingsModule,
     PaymentsModule,

@@ -17,6 +17,11 @@ import { CreateAgentPlayerDto } from './dto/create-agent-player.dto';
 import { CreateMasterAgentDto } from './dto/create-master-agent.dto';
 import { AdminJwtPayload } from '../admin/admin-jwt.strategy';
 import { BigWinService } from '../big-win/big-win.service';
+import {
+  LeaderboardService,
+  LeaderboardMetric,
+} from '../leaderboard/leaderboard.service';
+import { LeaderboardPeriod } from '../leaderboard/leaderboard-period';
 import { formatMoney, toDecimal } from '../common/utils/money.util';
 
 @Injectable()
@@ -28,6 +33,7 @@ export class AgentService {
     private readonly audit: AuditService,
     private readonly settings: SettingsService,
     private readonly bigWins: BigWinService,
+    private readonly leaderboard: LeaderboardService,
   ) {}
 
   // ─── Platform admin: master agents ─────────────────────────
@@ -408,6 +414,25 @@ export class AgentService {
         ? await this.scope.agentIdsInTree(agent.sub)
         : [agent.sub];
     return this.bigWins.listForAgentIds(agentIds, limit);
+  }
+
+  async listLeaderboard(
+    agent: AdminJwtPayload,
+    metric: LeaderboardMetric = 'win',
+    period: LeaderboardPeriod = 'day',
+    limit = 50,
+  ) {
+    const agentIds =
+      agent.role === 'master_agent'
+        ? await this.scope.agentIdsInTree(agent.sub)
+        : [agent.sub];
+    return this.leaderboard.list({
+      metric,
+      period,
+      limit,
+      agentIds,
+      maskNames: false,
+    });
   }
 
   private serializePlayer(p: {

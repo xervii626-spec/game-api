@@ -14,10 +14,22 @@ async function bootstrap() {
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
   app.use(helmet());
-  const corsOrigins = (process.env.FRONTEND_URL ?? "http://localhost:3003")
+  const configuredOrigins = (process.env.FRONTEND_URL ?? "http://localhost:3003")
     .split(",")
     .map((o) => o.trim())
     .filter(Boolean);
+  const devOrigins = [
+    "http://localhost:3003",
+    "http://localhost:3004",
+    "http://localhost:3005",
+    "http://127.0.0.1:3003",
+    "http://127.0.0.1:3004",
+    "http://127.0.0.1:3005",
+  ];
+  const corsOrigins =
+    process.env.NODE_ENV === "production"
+      ? configuredOrigins
+      : Array.from(new Set([...configuredOrigins, ...devOrigins]));
 
   app.enableCors({
     origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,

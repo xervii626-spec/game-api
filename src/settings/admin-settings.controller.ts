@@ -28,8 +28,7 @@ export class AdminSettingsController {
 
   @Get('daily-login-bonus')
   async getDailyLogin() {
-    const dailyLoginBonusUsd = await this.settings.getDailyLoginBonusUsd();
-    return { dailyLoginBonusUsd };
+    return this.settings.getDailyLoginBonusAdmin();
   }
 
   @Put('daily-login-bonus')

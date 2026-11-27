@@ -10,6 +10,10 @@ import { formatMoney, toDecimal } from '../common/utils/money.util';
 export const SETTING_MMK_PER_USD = 'mmk_per_usd';
 export const SETTING_TELEGRAM_REGISTER_URL = 'telegram_register_url';
 export const SETTING_DAILY_LOGIN_BONUS_USD = 'daily_login_bonus_usd';
+export const SETTING_DAILY_LOGIN_BONUS_USD_PENDING =
+  'daily_login_bonus_usd_pending';
+export const SETTING_DAILY_LOGIN_BONUS_PENDING_FROM =
+  'daily_login_bonus_pending_from';
 export const SETTING_BIG_WIN_THRESHOLD_MMK = 'big_win_threshold_mmk';
 const DEFAULT_DAILY_LOGIN_BONUS_USD = '1.0000';
 const DEFAULT_BIG_WIN_THRESHOLD_MMK = '100000';
@@ -134,7 +138,30 @@ export class SettingsService implements OnModuleInit {
     };
   }
 
+  /** Asia/Yangon calendar YYYY-MM-DD */
+  yangonDateKey(d = new Date()): string {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Yangon',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
+  }
+
+  /** Next Yangon calendar day after `fromKey` (YYYY-MM-DD). */
+  nextYangonDateKey(fromKey: string): string {
+    const [y, m, d] = fromKey.split('-').map(Number);
+    const utc = new Date(Date.UTC(y!, m! - 1, d!, 12, 0, 0));
+    utc.setUTCDate(utc.getUTCDate() + 1);
+    return utc.toISOString().slice(0, 10);
+  }
+
+  /**
+   * Active amount for claims today.
+   * If a pending amount's from-date ≤ today (Yangon), promote it first.
+   */
   async getDailyLoginBonusUsd(): Promise<string> {
+    await this.promoteDailyLoginBonusIfDue();
     const row = await this.prisma.platformSetting.findUnique({
       where: { key: SETTING_DAILY_LOGIN_BONUS_USD },
     });
@@ -142,19 +169,100 @@ export class SettingsService implements OnModuleInit {
     return formatMoney(toDecimal(raw));
   }
 
+  async getDailyLoginBonusAdmin() {
+    await this.promoteDailyLoginBonusIfDue();
+    const [active, pending, pendingFrom] = await Promise.all([
+      this.prisma.platformSetting.findUnique({
+        where: { key: SETTING_DAILY_LOGIN_BONUS_USD },
+      }),
+      this.prisma.platformSetting.findUnique({
+        where: { key: SETTING_DAILY_LOGIN_BONUS_USD_PENDING },
+      }),
+      this.prisma.platformSetting.findUnique({
+        where: { key: SETTING_DAILY_LOGIN_BONUS_PENDING_FROM },
+      }),
+    ]);
+    const dailyLoginBonusUsd = formatMoney(
+      toDecimal(active?.value ?? DEFAULT_DAILY_LOGIN_BONUS_USD),
+    );
+    const pendingUsd = pending?.value
+      ? formatMoney(toDecimal(pending.value))
+      : null;
+    return {
+      dailyLoginBonusUsd,
+      pendingDailyLoginBonusUsd: pendingUsd,
+      pendingFrom: pendingFrom?.value ?? null,
+      appliesNextYangonDay: Boolean(pendingUsd && pendingFrom?.value),
+      timezone: 'Asia/Yangon',
+    };
+  }
+
+  private async promoteDailyLoginBonusIfDue() {
+    const today = this.yangonDateKey();
+    const [pending, pendingFrom] = await Promise.all([
+      this.prisma.platformSetting.findUnique({
+        where: { key: SETTING_DAILY_LOGIN_BONUS_USD_PENDING },
+      }),
+      this.prisma.platformSetting.findUnique({
+        where: { key: SETTING_DAILY_LOGIN_BONUS_PENDING_FROM },
+      }),
+    ]);
+    if (!pending?.value || !pendingFrom?.value) return;
+    if (pendingFrom.value > today) return;
+
+    const value = formatMoney(toDecimal(pending.value));
+    await this.prisma.$transaction([
+      this.prisma.platformSetting.upsert({
+        where: { key: SETTING_DAILY_LOGIN_BONUS_USD },
+        create: { key: SETTING_DAILY_LOGIN_BONUS_USD, value },
+        update: { value },
+      }),
+      this.prisma.platformSetting.deleteMany({
+        where: {
+          key: {
+            in: [
+              SETTING_DAILY_LOGIN_BONUS_USD_PENDING,
+              SETTING_DAILY_LOGIN_BONUS_PENDING_FROM,
+            ],
+          },
+        },
+      }),
+    ]);
+  }
+
+  /** Schedule amount for next Yangon day (does not change today's claims). */
   async setDailyLoginBonusUsd(amount: string) {
     const value = formatMoney(toDecimal(amount));
     if (toDecimal(value).lte(0)) {
       throw new BadRequestException('Daily login bonus must be greater than 0');
     }
-    await this.prisma.platformSetting.upsert({
-      where: { key: SETTING_DAILY_LOGIN_BONUS_USD },
-      create: { key: SETTING_DAILY_LOGIN_BONUS_USD, value },
-      update: { value },
-    });
+    const today = this.yangonDateKey();
+    const pendingFrom = this.nextYangonDateKey(today);
+
+    await this.prisma.$transaction([
+      this.prisma.platformSetting.upsert({
+        where: { key: SETTING_DAILY_LOGIN_BONUS_USD_PENDING },
+        create: { key: SETTING_DAILY_LOGIN_BONUS_USD_PENDING, value },
+        update: { value },
+      }),
+      this.prisma.platformSetting.upsert({
+        where: { key: SETTING_DAILY_LOGIN_BONUS_PENDING_FROM },
+        create: {
+          key: SETTING_DAILY_LOGIN_BONUS_PENDING_FROM,
+          value: pendingFrom,
+        },
+        update: { value: pendingFrom },
+      }),
+    ]);
+
+    const active = await this.getDailyLoginBonusUsd();
     return {
-      key: SETTING_DAILY_LOGIN_BONUS_USD,
-      dailyLoginBonusUsd: value,
+      key: SETTING_DAILY_LOGIN_BONUS_USD_PENDING,
+      dailyLoginBonusUsd: active,
+      pendingDailyLoginBonusUsd: value,
+      pendingFrom,
+      appliesNextYangonDay: true,
+      timezone: 'Asia/Yangon',
     };
   }
 

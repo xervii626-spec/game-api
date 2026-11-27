@@ -9,6 +9,7 @@ import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { WalletBalanceService } from '../wallet/wallet-balance.service';
 import { AuditService } from '../audit/audit.service';
+import { AgentScopeService } from '../agent/agent-scope.service';
 import { AdjustBalanceDto } from './dto/adjust-balance.dto';
 import { AdminCreatePlayerDto } from './dto/admin-create-player.dto';
 import { AdminUpdatePlayerDto } from './dto/admin-update-player.dto';
@@ -20,11 +21,13 @@ export class AdminPlayersService {
     private readonly prisma: PrismaService,
     private readonly balances: WalletBalanceService,
     private readonly audit: AuditService,
+    private readonly agentScope: AgentScopeService,
   ) {}
 
   async list(params: {
     search?: string;
     blocked?: string;
+    masterAgentId?: number;
     page?: number;
     limit?: number;
   }) {
@@ -34,13 +37,31 @@ export class AdminPlayersService {
 
     const where: Prisma.PlayerWhereInput = {};
     if (params.search) {
+      const q = params.search.trim();
+      const asId = /^\d+$/.test(q) ? Number(q) : null;
       where.OR = [
-        { username: { contains: params.search, mode: 'insensitive' } },
-        { nickname: { contains: params.search, mode: 'insensitive' } },
+        { username: { contains: q, mode: 'insensitive' } },
+        { nickname: { contains: q, mode: 'insensitive' } },
+        ...(asId != null ? [{ id: asId }] : []),
       ];
     }
     if (params.blocked === 'true') where.isBlocked = true;
     if (params.blocked === 'false') where.isBlocked = false;
+
+    if (params.masterAgentId != null && Number.isFinite(params.masterAgentId)) {
+      const master = await this.prisma.adminUser.findFirst({
+        where: {
+          id: params.masterAgentId,
+          role: 'master_agent',
+        },
+        select: { id: true },
+      });
+      if (!master) {
+        throw new BadRequestException('Master agent not found');
+      }
+      const agentIds = await this.agentScope.agentIdsInTree(master.id);
+      where.agentId = { in: agentIds };
+    }
 
     const [items, total] = await Promise.all([
       this.prisma.player.findMany({

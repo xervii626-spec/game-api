@@ -28,9 +28,13 @@ model Player {
   transactions     Transaction[]
   ledger           WalletLedger[]
   paymentRequests  PaymentRequest[]
+  agentPaymentRequests AgentPaymentRequest[]
   bonusClaims      BonusClaim[]
   questProgress    QuestProgress[]
-  bigWins          BigWinEvent[]
+  bigWins               BigWinEvent[]
+  leaderboardStats      LeaderboardStat[]
+  announcementDeliveries AnnouncementDelivery[]
+  chatThreads            ChatThread[]
 
   @@index([isBlocked])
   @@index([createdAt])
@@ -155,6 +159,9 @@ model AdminUser {
   sessions        AdminAuthSession[]
   ledgers         WalletLedger[]
   paymentReviews  PaymentRequest[]
+  agentPaymentsRequested AgentPaymentRequest[] @relation("AgentPaymentRequester")
+  agentPaymentsAsMaster  AgentPaymentRequest[] @relation("AgentPaymentMaster")
+  agentPaymentsReviewed  AgentPaymentRequest[] @relation("AgentPaymentReviewer")
 
   @@index([role, isActive])
   @@index([parentId])
@@ -228,6 +235,38 @@ model QuestProgress {
   @@map("quest_progress")
 }
 
+/// Pre-aggregated leaderboard rollup (light filter queries)
+model LeaderboardStat {
+  id             Int      @id @default(autoincrement())
+  playerId       Int      @map("player_id")
+  agentId        Int?     @map("agent_id")
+  /// day | week | all
+  period         String   @db.VarChar(10)
+  /// YYYY-MM-DD | YYYY-Www | all
+  periodKey      String   @map("period_key") @db.VarChar(16)
+  totalWinUsd    Decimal  @default(0) @map("total_win_usd") @db.Decimal(18, 4)
+  totalBetUsd    Decimal  @default(0) @map("total_bet_usd") @db.Decimal(18, 4)
+  netUsd         Decimal  @default(0) @map("net_usd") @db.Decimal(18, 4)
+  biggestWinUsd  Decimal  @default(0) @map("biggest_win_usd") @db.Decimal(18, 4)
+  username       String   @db.VarChar(50)
+  nickname       String   @db.VarChar(50)
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@unique([playerId, period, periodKey])
+  @@index([period, periodKey, totalWinUsd(sort: Desc)])
+  @@index([period, periodKey, totalBetUsd(sort: Desc)])
+  @@index([period, periodKey, netUsd(sort: Desc)])
+  @@index([period, periodKey, biggestWinUsd(sort: Desc)])
+  @@index([period, periodKey, agentId, totalWinUsd(sort: Desc)])
+  @@index([period, periodKey, agentId, totalBetUsd(sort: Desc)])
+  @@index([period, periodKey, agentId, netUsd(sort: Desc)])
+  @@index([period, periodKey, agentId, biggestWinUsd(sort: Desc)])
+  @@map("leaderboard_stats")
+}
+
 /// Public big-win ticker events (win ≥ admin MMK threshold)
 model BigWinEvent {
   id         Int      @id @default(autoincrement())
@@ -296,6 +335,41 @@ model PaymentRequest {
   @@map("payment_requests")
 }
 
+/// Sub-agent → Master deposit/withdraw requests for a downline player
+model AgentPaymentRequest {
+  id             Int       @id @default(autoincrement())
+  requesterId    Int       @map("requester_id")
+  masterId       Int       @map("master_id")
+  playerId       Int       @map("player_id")
+  /// deposit | withdraw
+  type           String    @db.VarChar(20)
+  /// pending | approved | rejected | cancelled
+  status         String    @default("pending") @db.VarChar(20)
+  amountMmk      Decimal   @map("amount_mmk") @db.Decimal(18, 2)
+  amountUsd      Decimal   @map("amount_usd") @db.Decimal(18, 4)
+  rateUsed       Decimal   @map("rate_used") @db.Decimal(18, 4)
+  method         String?   @db.VarChar(50)
+  reference      String?   @db.VarChar(100)
+  requesterNote  String?   @map("requester_note") @db.VarChar(255)
+  reviewerNote   String?   @map("reviewer_note") @db.VarChar(255)
+  reviewedById   Int?      @map("reviewed_by_id")
+  reviewedAt     DateTime? @map("reviewed_at")
+  ledgerId       Int?      @map("ledger_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  requester AdminUser @relation("AgentPaymentRequester", fields: [requesterId], references: [id])
+  master    AdminUser @relation("AgentPaymentMaster", fields: [masterId], references: [id])
+  reviewer  AdminUser? @relation("AgentPaymentReviewer", fields: [reviewedById], references: [id])
+  player    Player    @relation(fields: [playerId], references: [id])
+
+  @@index([masterId, status, createdAt(sort: Desc)])
+  @@index([requesterId, status, createdAt(sort: Desc)])
+  @@index([playerId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("agent_payment_requests")
+}
+
 model AuditLog {
   id        Int      @id @default(autoincrement())
   action    String   @db.VarChar(50)
@@ -310,4 +384,99 @@ model AuditLog {
   @@index([playerId, createdAt(sort: Desc)])
   @@index([adminId, createdAt(sort: Desc)])
   @@map("audit_logs")
+}
+
+/// Platform broadcast to all players (fan-out via batch worker)
+model Announcement {
+  id               Int       @id @default(autoincrement())
+  name             String    @db.VarChar(120)
+  description      String    @db.VarChar(1000)
+  /// queued | sending | done | failed
+  status           String    @default("queued") @db.VarChar(20)
+  createdByAdminId Int?      @map("created_by_admin_id")
+  totalTargets     Int       @default(0) @map("total_targets")
+  deliveredCount   Int       @default(0) @map("delivered_count")
+  /// Cursor for batch fan-out (last player id processed)
+  cursorPlayerId   Int       @default(0) @map("cursor_player_id")
+  lastError        String?   @map("last_error") @db.VarChar(255)
+  sentAt           DateTime? @map("sent_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  deliveries AnnouncementDelivery[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("announcements")
+}
+
+model AnnouncementDelivery {
+  id             Int       @id @default(autoincrement())
+  announcementId Int       @map("announcement_id")
+  playerId       Int       @map("player_id")
+  readAt         DateTime? @map("read_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  player       Player       @relation(fields: [playerId], references: [id])
+
+  @@unique([announcementId, playerId])
+  @@index([playerId, createdAt(sort: Desc)])
+  @@index([playerId, readAt])
+  @@index([announcementId, id])
+  @@map("announcement_deliveries")
+}
+
+/// Admin-managed FAQ entries for the FAQ chat bot
+model Faq {
+  id        Int      @id @default(autoincrement())
+  question  String   @db.VarChar(255)
+  answer    String   @db.VarChar(2000)
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  messages ChatMessage[]
+
+  @@index([isActive, sortOrder, id])
+  @@map("faqs")
+}
+
+/// Chat thread — FAQ now; later realtime/live agent reuses this
+model ChatThread {
+  id        Int      @id @default(autoincrement())
+  playerId  Int      @map("player_id")
+  /// faq | live
+  mode      String   @default("faq") @db.VarChar(20)
+  /// open | closed
+  status    String   @default("open") @db.VarChar(20)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  player   Player        @relation(fields: [playerId], references: [id])
+  messages ChatMessage[]
+
+  @@index([playerId, status, updatedAt(sort: Desc)])
+  @@index([mode, status])
+  @@map("chat_threads")
+}
+
+model ChatMessage {
+  id        Int      @id @default(autoincrement())
+  threadId  Int      @map("thread_id")
+  /// user | bot | agent (agent reserved for realtime later)
+  role      String   @db.VarChar(20)
+  /// faq | text
+  kind      String   @default("faq") @db.VarChar(20)
+  faqId     Int?     @map("faq_id")
+  body      String   @db.VarChar(2000)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  thread ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  faq    Faq?       @relation(fields: [faqId], references: [id])
+
+  @@index([threadId, createdAt])
+  @@index([faqId])
+  @@map("chat_messages")
 }

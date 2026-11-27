@@ -10,6 +10,7 @@ import * as bcrypt from 'bcryptjs';
 import { PlayersService } from '../players/players.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WalletBalanceService } from '../wallet/wallet-balance.service';
+import { BonusService } from '../bonus/bonus.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
@@ -26,6 +27,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly balances: WalletBalanceService,
+    private readonly bonus: BonusService,
   ) {}
 
   health() {
@@ -66,12 +68,15 @@ export class AuthService {
     }
 
     const auth = await this.issueTokenPair(player.id, player.username);
+    // Indexed unique lookup (+ memory/Redis cache) — drives post-login claim modal
+    const dailyLogin = await this.bonus.dailyLoginStatus(player.id);
     return {
       accessToken: auth.accessToken,
       refreshToken: auth.refreshToken,
       expiresAt: auth.expiresAt,
       refreshExpiresAt: auth.refreshExpiresAt,
       player: this.sanitizePlayer(player),
+      dailyLogin,
     };
   }
 

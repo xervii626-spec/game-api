@@ -32,12 +32,14 @@ export class AdminPlayersController {
   list(
     @Query('search') search?: string,
     @Query('blocked') blocked?: string,
+    @Query('masterAgentId') masterAgentId?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.players.list({
       search,
       blocked,
+      masterAgentId: masterAgentId ? Number(masterAgentId) : undefined,
       page: page ? Number(page) : 1,
       limit: limit ? Number(limit) : 20,
     });

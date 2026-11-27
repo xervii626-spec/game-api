@@ -18,6 +18,7 @@ import { AdminRolesGuard } from './admin-roles.guard';
 import { WalletModule } from '../wallet/wallet.module';
 import { AuditModule } from '../audit/audit.module';
 import { SettingsModule } from '../settings/settings.module';
+import { AgentScopeService } from '../agent/agent-scope.service';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { SettingsModule } from '../settings/settings.module';
     AdminJwtAuthGuard,
     AdminRolesGuard,
     AdminSseTicketGuard,
+    AgentScopeService,
   ],
   exports: [
     AdminAuthService,

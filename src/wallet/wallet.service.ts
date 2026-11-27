@@ -23,6 +23,7 @@ import { toDecimal } from '../common/utils/money.util';
 import { AdminEventsService } from '../admin-events/admin-events.service';
 import { QuestProgressService } from '../quest/quest-progress.service';
 import { BigWinService } from '../big-win/big-win.service';
+import { LeaderboardService } from '../leaderboard/leaderboard.service';
 
 @Injectable()
 export class WalletService {
@@ -37,6 +38,7 @@ export class WalletService {
     @Inject(forwardRef(() => QuestProgressService))
     private readonly questProgress: QuestProgressService,
     private readonly bigWins: BigWinService,
+    private readonly leaderboard: LeaderboardService,
   ) {}
 
   private operatorOk(operatorId: number): boolean {
@@ -344,6 +346,9 @@ export class WalletService {
       await this.auditSafe('Withdraw', dto.PlayerId, dto, res);
       this.adminEvents.emitActivity('bet');
       void this.questProgress.onBet(dto.PlayerId, amountUsd);
+      if (!bonusMode) {
+        void this.leaderboard.onBet(dto.PlayerId, amountUsd);
+      }
       return res;
     } catch (e) {
       if (this.isNotEnough(e)) {
@@ -508,6 +513,7 @@ export class WalletService {
           amountUsd,
           gameId: dto.GameId ?? null,
         });
+        void this.leaderboard.onWin(dto.PlayerId, amountUsd);
       }
       return res;
     } catch (e) {
@@ -733,6 +739,9 @@ export class WalletService {
       this.adminEvents.emitActivity('bet_win');
       if (toDecimal(withdrawUsd).gt(0)) {
         void this.questProgress.onBet(dto.PlayerId, withdrawUsd);
+        if (!bonusMode) {
+          void this.leaderboard.onBet(dto.PlayerId, withdrawUsd);
+        }
       }
       if (!bonusMode && toDecimal(depositUsd).gt(0)) {
         void this.bigWins.maybeRecordWin({
@@ -740,6 +749,7 @@ export class WalletService {
           amountUsd: depositUsd,
           gameId: dto.GameId ?? null,
         });
+        void this.leaderboard.onWin(dto.PlayerId, depositUsd);
       }
       return res;
     } catch (e) {
